@@ -4,7 +4,7 @@ This is Pie, the companion language for _The Little Typer_ by Daniel P. Friedman
 
 ## How to Use Pie
 
-Pie is a [Racket](http://racket-lang.org) language, requiring Racket version 6.11 or newer. After installation, Racket will interpret any file beginning with `#lang pie` as a Pie program.
+Pie is a [Racket](http://racket-lang.org) language, requiring Racket version 6.5 or newer. After installation, Racket will interpret any file beginning with `#lang pie` as a Pie program.
 
 ### TODO items
 
