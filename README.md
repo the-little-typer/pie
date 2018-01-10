@@ -14,7 +14,7 @@ If you can't figure out what to write at some point in a Pie program, it's OK to
 
 Pie provides additional information to DrRacket, including tooltips and other metadata. Point the mouse at a pair of parentheses, a name, or a Pie constructor or type constructor to see information about the expression.
 
-Additionally, Pie supports the [DrRacket TODO list](https://github.com/david-christiansen/todo-lilst) for incomplete programs.
+Additionally, Pie supports the [DrRacket TODO list](https://github.com/david-christiansen/todo-list) for incomplete programs.
 
 ### Command-Line REPL
 
