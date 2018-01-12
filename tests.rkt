@@ -887,3 +887,29 @@
                                                                     (λ (z eq2)
                                                                       eq2))))))
                            '("Expected evidence of equality, got " Nat))
+
+(check-equal?
+ (rep init-ctx
+      (parse-pie #'(the (-> Nat Nat Nat)
+                        (lambda (n)
+                          (iter-Nat n
+                                    (the (-> Nat Nat)
+                                         (lambda (m)
+                                           zero))
+                                    (lambda (times-of-n-1)
+                                      (lambda (m)
+                                        (iter-Nat m
+                                                  (times-of-n-1 m)
+                                                  (lambda (x)
+                                                    (add1 x))))))))))
+ (go
+  '(the
+    (Π ((x Nat)) (Π ((x₁ Nat)) Nat))
+    (λ (n)
+      (λ (x₁)
+        ((iter-Nat
+          n
+          (the (Π ((x Nat)) Nat) (λ (m) zero))
+          (λ (times-of-n-1)
+            (λ (m) (iter-Nat m (the Nat (times-of-n-1 m)) (λ (x) (add1 x))))))
+         x₁))))))

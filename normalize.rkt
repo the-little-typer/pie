@@ -51,7 +51,7 @@
      (NEU b-tv
           (N-iter-Nat ne
                       (THE b-tv b-v)
-                      (THE (Π-type ((n 'NAT)) b-tv)
+                      (THE (Π-type ((n b-tv)) b-tv)
                            s-v)))]))
 
 (: do-rec-Nat (-> Value Value Value Value Value))
