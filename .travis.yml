@@ -44,6 +44,10 @@ install:
  - raco pkg install --auto --name pie --link $TRAVIS_BUILD_DIR
 
 before_script:
+  # Set up an X server, so GTK doesn't fail to initialize for GUI tests
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+  - sleep 3 # give xvfb some time to start
 
 # Here supply steps such as raco make, raco test, etc.  Note that you
 # need to supply /usr/racket/bin/ -- it's not in PATH. You can run
