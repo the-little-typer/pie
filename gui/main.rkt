@@ -3,7 +3,7 @@
 (require (for-syntax syntax/parse))
 
 (require (except-in "../basics.rkt" go-on))
-(require "../typechecker.rkt")
+(require (except-in "../typechecker.rkt" rename))
 (require "../parser.rkt")
 (require "../rep.rkt")
 (require (only-in "../locations.rkt" location->syntax))

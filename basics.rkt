@@ -373,7 +373,9 @@
 
 (: bind-free (-> Ctx Symbol Value Ctx))
 (define (bind-free Γ x tv)
-  (cons (cons x (free tv)) Γ))
+  (if (assv x Γ)
+      (error 'bind-free "~a is already bound in ~a" x Γ)
+      (cons (cons x (free tv)) Γ)))
 
 (: bind-val (-> Ctx Symbol Value Value Ctx))
 (define (bind-val Γ x tv v)

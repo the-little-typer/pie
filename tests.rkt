@@ -913,3 +913,24 @@
           (λ (times-of-n-1)
             (λ (m) (iter-Nat m (the Nat (times-of-n-1 m)) (λ (x) (add1 x))))))
          x₁))))))
+
+(check-equal?
+ (rep init-ctx (parse-pie #'(the (Π ((A U) (D U)) (-> A D (Pair A D))) (λ (x x x y) (cons x y)))))
+ (go
+  '(the
+    (Π ((A U)) (Π ((D U)) (Π ((x A)) (Π ((x₁ D)) (Σ ((x₂ A)) D)))))
+    (λ (x) (λ (x₁) (λ (x₂) (λ (y) (cons x₂ y))))))))
+
+(check-equal?
+ (rep init-ctx (parse-pie #'((the (Π ((A U) (D U)) (-> A D (Pair A D))) (λ (x x x y) (cons x y))) Nat Atom 5 'five)))
+ (go
+ '(the
+   (Σ ((x₂ Nat)) Atom)
+   (cons (add1 (add1 (add1 (add1 (add1 zero))))) 'five))))
+
+(check-equal?
+ (rep init-ctx (parse-pie #'((the (Π ((A U) (D U)) (-> A D (Pair A D))) (λ (x x x y) (cons x y))) Nat Atom 5)))
+ (go
+ '(the
+   (Π ((x₁ Atom)) (Σ ((x₂ Nat)) Atom))
+   (λ (y) (cons (add1 (add1 (add1 (add1 (add1 zero))))) y)))))
