@@ -10,7 +10,15 @@
   #:property prop:exn:srclocs
   (lambda (e)
     (match (exn:fail:pie-where e)
-      [(list src line col pos span)
+      [(list raw-src line col pos span)
+       ;; DrRacket highlights more consistently if we
+       ;; return an actual path for the source when
+       ;; the source string corresponds to a valid
+       ;; file on the user's machine.
+       (define src (if (and (string? raw-src)
+                            (file-exists? raw-src))
+                       (string->path raw-src)
+                       raw-src))
        (list (srcloc src line col pos span))]))
   #:transparent)
 
