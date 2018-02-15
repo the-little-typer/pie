@@ -314,17 +314,19 @@
                                  [(or 'trans 'ind-Vec) 2]
                                  [_ 1]))
                              ;; find if last
-                             (and-let* ([targets-end
-                                         (let loop ([i target-count]
-                                                    [pos (add1 sexp-start)])
-                                           (if (> i 0)
-                                               (loop (sub1 i)
-                                                     (send txt get-forward-sexp pos))
-                                               pos))]
-                                        [first-line-sexp-end (send txt get-forward-sexp pos)])
-                                       (if (>= first-line-sexp-end targets-end)
-                                           (+ 1 indent-basis)
-                                           (+ 4 indent-basis)))]
+                             (let ([targets-end
+                                    (let loop ([i target-count]
+                                               [pos (add1 sexp-start)])
+                                      (if (> i 0)
+                                          (loop (sub1 i)
+                                                (send txt get-forward-sexp pos))
+                                          pos))])
+                               (and targets-end
+                                    (let ([first-line-sexp-end (send txt get-forward-sexp pos)])
+                                      (if (or (not first-line-sexp-end)
+                                              (>= first-line-sexp-end targets-end))
+                                          (+ 1 indent-basis)
+                                          (+ 4 indent-basis)))))]
                             [other
                              #:when (or (eqv? op '->) (eqv? op '→))
                              (and-let* ([sexp-end (send txt get-forward-sexp sexp-start)]
