@@ -465,7 +465,7 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
  then @pie[(trans target-1 target-2)] is an @pie[(= _X _from _to)].
 }
 @def-eliminator[(cong [target (= _X _from _to)] [fun (→ _X _Y)])
-                 (= _X (fun _from) (fun _to))]{
+                 (= _Y (fun _from) (fun _to))]{
  @pie[cong] shows that all functions respect equality. In particular,
  if @pie[target] is an @pie[(= _X _from _to)] and @pie[fun] is an
  @pieblock[(→ _X
