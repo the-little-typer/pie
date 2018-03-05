@@ -303,8 +303,8 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
                            [base (motive nil)]
                            [step (Π ((e _E)
                                      (es (List _E)))
-                                   (-> (mot es)
-                                     (mot (:: e es))))])
+                                   (-> (motive es)
+                                     (motive (:: e es))))])
                  (motive target)]{
  @pie[ind-List] is induction on lists. When @pie[target] is a @pie[(List _E)], t
  the whole expression's type is @pie[(motive target)], the type of
