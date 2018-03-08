@@ -84,7 +84,7 @@
              `(replace (the ,(cdr resugared-t) ,(cdr resugared-tgt))
                        ,(cdr resugared-mot)
                        ,(cdr resugared-base))))]
-    [`(cong ,t ,tgt ,fun)
+    [`(cong ,tgt ,t ,fun)
      (let ((resugared-tgt (resugar* tgt))
            (resugared-fun (resugar* fun)))
        (cons (append (car resugared-tgt) (car resugared-fun))
