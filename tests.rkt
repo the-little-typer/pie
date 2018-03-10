@@ -11,7 +11,7 @@
                                 (List 'check-same Precise-Loc Src Src Src)
                                 (List 'expression Src)))])
 (require "rep.rkt")
-
+(require (only-in "normalize.rkt" read-back-ctx))
 
 
 
@@ -934,3 +934,261 @@
  '(the
    (Π ((x₁ Atom)) (Σ ((x₂ Nat)) Atom))
    (λ (y) (cons (add1 (add1 (add1 (add1 (add1 zero))))) y)))))
+
+
+;;; This is a regression test for issue #14, from
+;;; https://github.com/the-little-typer/pie/issues/14
+;;;
+;;; Sorry for the length, I couldn't minimize it further.
+(check-equal?
+ (read-back-ctx
+  (for/fold ([st init-ctx])
+            ([d (map parse-pie-decl
+                     (list #'(claim succ (-> Nat Nat))
+                           #'(define succ (λ (x) (add1 x)))
+                           #'(claim + (-> Nat Nat Nat))
+                           #'(define + (λ (x y) (iter-Nat x y succ)))
+
+                           #'(claim * (-> Nat Nat Nat))
+                           #'(define * (λ (x y) (iter-Nat x 0 (+ y))))
+                           #'(claim append-vec
+                                    (Π ([E U]
+                                        [n Nat]
+                                        [m Nat])
+                                      (-> (Vec E n) (Vec E m)
+                                          (Vec E (+ n m)))))
+                           #'(define append-vec
+                               (λ (E n m xs ys)
+                                 (ind-Vec n xs
+                                          (λ (z v) (Vec E (+ z m)))
+                                          ys
+                                          (λ (k h t q)
+                                            (vec:: h q)))))
+                           #'(claim map-vec
+                                    (Π ((A U)
+                                        (B U)
+                                        [n Nat])
+                                      (-> (-> A B)
+                                          (Vec A n)
+                                          (Vec B n))))
+                           #'(define map-vec
+                               (λ (A B n f v)
+                                 (ind-Vec n v
+                                          (λ (n v) (Vec B n))
+                                          vecnil
+                                          (λ (? x _ qwerty)
+                                            (vec:: (f x) qwerty)))))
+                           #'
+                           (claim foo
+                                  (Π ((X U)
+                                      (Y U)
+                                      (f (-> X Y))
+                                      (j Nat)
+                                      (v (Vec X j)))
+                                    (= (Vec Y (+ j 0))
+                                       (append-vec Y j 0
+                                                   (map-vec X Y j f v)
+                                                   (map-vec X Y 0 f vecnil))
+                                       (map-vec X Y (+ j 0) f
+                                                (append-vec X j 0 v vecnil)))))
+                           #'(define foo
+                               (λ (X Y f j v)
+                                 (ind-Vec j v
+                                          (λ (j v)
+                                            (= (Vec Y (+ j 0))
+                                               (append-vec Y j 0
+                                                           (map-vec X Y j f v)
+                                                           (map-vec X Y 0 f vecnil))
+                                               (map-vec X Y (+ j 0) f
+                                                        (append-vec X j 0 v vecnil))))
+                                          (same (map-vec X Y 0 f vecnil))
+                                          (λ (m x xs IH)
+                                            (trans (the (= (Vec Y (add1 (+ m 0)))
+                                                           (append-vec Y (add1 m) 0
+                                                                       (map-vec X Y (add1 m) f
+                                                                                (vec:: x xs))
+                                                                       (map-vec X Y 0 f vecnil))
+                                                           (vec:: (f x)
+                                                                  (append-vec Y m 0
+                                                                              (map-vec X Y m f xs)
+                                                                              (map-vec X Y 0 f vecnil))))
+                                                        (same (vec:: (f x)
+                                                                     (append-vec Y m 0
+                                                                                 (map-vec X Y m f xs)
+                                                                                 (map-vec X Y 0 f vecnil)))))
+                                                   (cong IH (the (-> (Vec Y (+ m 0))
+                                                                     (Vec Y (add1 (+ m 0))))
+                                                                 (λ (tl)
+                                                                   (vec:: (f x) tl)))))))))
+                           ))])
+    (match d
+      [`(claim ,x ,loc ,t)
+       (match (add-claim st x loc t)
+         [(go new-st) new-st]
+         [(stop where msg)
+          (error (format "Nope: ~a" msg))])]
+      [`(definition ,x ,loc ,v)
+       (match (add-def st x loc v)
+         [(go new-st) new-st]
+         [(stop where msg)
+          (error (format "Nope: ~a" msg))])])))
+ '((foo
+    (def (Π ((X U))
+           (Π ((Y U))
+             (Π ((f (Π ((x X)) Y)))
+               (Π ((j Nat))
+                 (Π ((v (Vec X j)))
+                   (= (Vec Y (iter-Nat j (the Nat zero) (λ (x) (add1 x))))
+                      (ind-Vec
+                       j
+                       (ind-Vec
+                        j
+                        v
+                        (λ (n₁) (λ (v₁) (Vec Y n₁)))
+                        vecnil
+                        (λ (?) (λ (x) (λ (_) (λ (qwerty) (vec:: (f x) qwerty))))))
+                       (λ (z)
+                         (λ (v₁) (Vec Y (iter-Nat z (the Nat zero) (λ (x) (add1 x))))))
+                       vecnil
+                       (λ (k) (λ (h) (λ (t) (λ (q) (vec:: h q))))))
+                      (ind-Vec
+                       (iter-Nat j (the Nat zero) (λ (x) (add1 x)))
+                       (ind-Vec
+                        j
+                        v
+                        (λ (z)
+                          (λ (v₁) (Vec X (iter-Nat z (the Nat zero) (λ (x) (add1 x))))))
+                        vecnil
+                        (λ (k) (λ (h) (λ (t) (λ (q) (vec:: h q))))))
+                       (λ (n₁) (λ (v₁) (Vec Y n₁)))
+                       vecnil
+                       (λ (?) (λ (x) (λ (_) (λ (qwerty) (vec:: (f x) qwerty))))))))))))
+      (λ (X)
+        (λ (Y)
+          (λ (f)
+            (λ (j)
+              (λ (v)
+                (ind-Vec
+                 j
+                 v
+                 (λ (j₁)
+                   (λ (v₁)
+                     (=
+                      (Vec Y (iter-Nat j₁ (the Nat zero) (λ (x) (add1 x))))
+                      (ind-Vec
+                       j₁
+                       (ind-Vec
+                        j₁
+                        v₁
+                        (λ (n₁) (λ (v₂) (Vec Y n₁)))
+                        vecnil
+                        (λ (?)
+                          (λ (x) (λ (_) (λ (qwerty) (vec:: (f x) qwerty))))))
+                       (λ (z)
+                         (λ (v₂)
+                           (Vec Y (iter-Nat z (the Nat zero) (λ (x) (add1 x))))))
+                       vecnil
+                       (λ (k) (λ (h) (λ (t) (λ (q) (vec:: h q))))))
+                      (ind-Vec
+                       (iter-Nat j₁ (the Nat zero) (λ (x) (add1 x)))
+                       (ind-Vec
+                        j₁
+                        v₁
+                        (λ (z)
+                          (λ (v₂)
+                            (Vec
+                             X
+                             (iter-Nat z (the Nat zero) (λ (x) (add1 x))))))
+                        vecnil
+                        (λ (k) (λ (h) (λ (t) (λ (q) (vec:: h q))))))
+                       (λ (n₁) (λ (v₂) (Vec Y n₁)))
+                       vecnil
+                       (λ (?)
+                         (λ (x) (λ (_) (λ (qwerty) (vec:: (f x) qwerty)))))))))
+                 (same vecnil)
+                 (λ (m)
+                   (λ (x)
+                     (λ (xs)
+                       (λ (IH)
+                         (trans
+                          (same
+                           (vec::
+                            (f x)
+                            (ind-Vec
+                             m
+                             (ind-Vec
+                              m
+                              xs
+                              (λ (n₁) (λ (v₁) (Vec Y n₁)))
+                              vecnil
+                              (λ (?)
+                                (λ (x₁)
+                                  (λ (_) (λ (qwerty) (vec:: (f x₁) qwerty))))))
+                             (λ (z)
+                               (λ (v₁)
+                                 (Vec
+                                  Y
+                                  (iter-Nat
+                                   z
+                                   (the Nat zero)
+                                   (λ (x₁) (add1 x₁))))))
+                             vecnil
+                             (λ (k) (λ (h) (λ (t) (λ (q) (vec:: h q))))))))
+                          (cong
+                           IH
+                           (Vec
+                            Y
+                            (add1
+                             (iter-Nat m (the Nat zero) (λ (x₁) (add1 x₁)))))
+                           (λ (tl) (vec:: (f x) tl))))))))))))))))
+   (map-vec
+    (def (Π ((A U))
+           (Π ((B U))
+             (Π ((n Nat))
+               (Π ((x (Π ((x A))
+                        B)))
+                 (Π ((x₁ (Vec A n)))
+                   (Vec B n))))))
+      (λ (A)
+        (λ (B)
+          (λ (n)
+            (λ (f)
+              (λ (v)
+                (ind-Vec
+                 n
+                 v
+                 (λ (n₁) (λ (v₁) (Vec B n₁)))
+                 vecnil
+                 (λ (?)
+                   (λ (x) (λ (_) (λ (qwerty) (vec:: (f x) qwerty)))))))))))))
+   (append-vec
+    (def (Π ((E U))
+           (Π ((n Nat))
+             (Π ((m Nat))
+               (Π ((x (Vec E n)))
+                 (Π ((x₁ (Vec E m)))
+                   (Vec E (iter-Nat n (the Nat m) (λ (x₂) (add1 x₂)))))))))
+      (λ (E)
+        (λ (n)
+          (λ (m)
+            (λ (xs)
+              (λ (ys)
+                (ind-Vec
+                 n
+                 xs
+                 (λ (z)
+                   (λ (v) (Vec E (iter-Nat z (the Nat m) (λ (x) (add1 x))))))
+                 ys
+                 (λ (k) (λ (h) (λ (t) (λ (q) (vec:: h q)))))))))))))
+   (* (def
+        (Π ((x Nat)) (Π ((x₁ Nat)) Nat))
+        (λ (x)
+          (λ (y)
+            (iter-Nat
+             x
+             (the Nat zero)
+             (λ (y₁) (iter-Nat y (the Nat y₁) (λ (x₁) (add1 x₁)))))))))
+   (+ (def
+        (Π ((x Nat)) (Π ((x₁ Nat)) Nat))
+        (λ (x) (λ (y) (iter-Nat x (the Nat y) (λ (x₁) (add1 x₁)))))))
+   (succ (def (Π ((x Nat)) Nat) (λ (x) (add1 x))))))
