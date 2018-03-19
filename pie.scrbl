@@ -396,11 +396,11 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
  @pie[Either] represents that there are two possibilities: either an @pie[L]
  with @pie[left] on top, or an @pie[R] with @pie[right] on top.
 }
-@def-constructor[(left [l (Either _L _R)]) _L]{
+@def-constructor[(left [l _L]) (Either _L _R)]{
  @ex[(the (Either Nat Atom) (left 3))
      (eval:error (the (Either Nat Atom) (left 'rosenkål)))]
 }
-@def-constructor[(right [r (Either _L _R)]) _R]{
+@def-constructor[(right [r _R]) (Either _L _R)]{
  @ex[(the (Either Nat Atom) (right 'blomkål))
      (eval:error (the (Either Nat Atom) (right 8)))]
 }
