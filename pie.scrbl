@@ -405,9 +405,11 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
      (eval:error (the (Either Nat Atom) (right 8)))]
 }
 @def-eliminator[(ind-Either [target (Either _X _Y)]
-                             [motive (-> (Either _X _Y) U)]
-                             [on-left (-> _X (motive target))]
-                             [on-right (-> _Y (motive target))])
+                             [motive (→ (Either _X _Y) U)]
+                             [on-left (Π ((l _L))
+                                        (motive (left l)))]
+                             [on-right (Π ((r _R))
+                                         (motive (right r)))])
                  (motive target)]{
   Induction on @pie[Either] consists of showing how to fulfill the motive for
  both constructors.
