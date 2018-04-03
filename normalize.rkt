@@ -291,6 +291,7 @@
 (: val-of (-> Env Core Value))
 (define (val-of ρ e)
   (match e
+    [`(the ,t ,expr) (val-of ρ expr)]
     ['U 'UNIVERSE]
     ['Nat 'NAT]
     ['zero 'ZERO]
