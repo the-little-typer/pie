@@ -204,7 +204,7 @@
 (: do-ind-= (->  Value Value Value Value))
 (define (do-ind-= tgt-v motive-v base-v)
   (match tgt-v
-    [(SAME v) (do-ap (do-ap base-v v) (SAME v))]
+    [(SAME v) base-v]
     [(NEU (EQUAL A from to) ne)
      (NEU (do-ap (do-ap motive-v to) tgt-v)
           (N-ind-= ne

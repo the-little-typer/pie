@@ -1192,3 +1192,66 @@
         (Π ((x Nat)) (Π ((x₁ Nat)) Nat))
         (λ (x) (λ (y) (iter-Nat x (the Nat y) (λ (x₁) (add1 x₁)))))))
    (succ (def (Π ((x Nat)) Nat) (λ (x) (add1 x))))))
+
+
+;;; Regression test for issue #20, where the evaluation rule for ind-= was wrong.
+
+(check-equal?
+ (read-back-ctx
+  (for/fold ([st init-ctx])
+            ([d (map parse-pie-decl
+                     (list #'(claim my-J
+                                    (Π ((A U) (x A) (C (Π ((y A)) (-> (= A x y) U))))
+                                      (Π ((y A)
+                                          (eq (= A x y)))
+                                        (-> (C x (same x))
+                                            (C y eq)))))
+                           #'(define my-J
+                               (λ (A x C)
+                                 (λ (y eq b)
+                                   (ind-= eq C b))))
+                           #'(claim my-J-works
+                                    (= (= Nat 2 2)
+                                       (my-J Nat 2 (λ (z eq) (= Nat 2 z))
+                                             2 (same 2) (same 2))
+                                       (same 2)))
+                           ;; The conversion check would have crashed here
+                           ;; due to a bad implementation of ind-=
+                           #'(define my-J-works
+                               (same (same 2)))))])
+    (match d
+      [`(claim ,x ,loc ,t)
+       (match (add-claim st x loc t)
+         [(go new-st) new-st]
+         [(stop where msg)
+          (error (format "Nope: ~a" msg))])]
+      [`(definition ,x ,loc ,v)
+       (match (add-def st x loc v)
+         [(go new-st) new-st]
+         [(stop where msg)
+          (error (format "Nope: ~a" msg))])])))
+ '((my-J-works
+    (def
+      (=
+       (= Nat (add1 (add1 zero)) (add1 (add1 zero)))
+       (same (add1 (add1 zero)))
+       (same (add1 (add1 zero))))
+      (same (same (add1 (add1 zero))))))
+   (my-J
+    (def
+      (Π ((A U))
+        (Π ((x A))
+          (Π ((C (Π ((y A)) (Π ((x₁ (= A x y))) U))))
+            (Π ((y A))
+              (Π ((eq (= A x y))) (Π ((x₁ ((C x) (same x)))) ((C y) eq)))))))
+      (λ (A)
+        (λ (x)
+          (λ (C)
+            (λ (y)
+              (λ (eq)
+                (λ (b)
+                  (ind-= eq
+                         (λ (to)
+                           (λ (p)
+                             ((C to) p)))
+                         b)))))))))))
