@@ -622,7 +622,7 @@
     [x:pie-id
      stx]
     [Absurd
-     (syntax/loc stx kw:Absurd)]
+     (add-disappeared (syntax/loc stx kw:Absurd) stx)]
     [(ind-Absurd ~! tgt mot)
      (with-syntax ([tgt* #'(pie->binders tgt)]
                    [mot* #'(pie->binders mot)]
