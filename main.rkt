@@ -151,7 +151,8 @@
                 [`(expression ,e)
                  (match (norm Γ e)
                    [(go out)
-                    (begin (displayln out)
+                    (begin (pprint-pie (resugar out))
+                           (printf "\n")
                            (loop (cdr forms) Γ))]
                    [(stop where why)
                     (raise-pie-error where why)])])]))))

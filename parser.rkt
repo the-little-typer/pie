@@ -630,7 +630,7 @@
        (add-disappeared (syntax/loc stx (void ind-Absurd/loc tgt* mot*))
                         (car (syntax-e stx))))]
     [n:nat
-     (syntax/loc stx n)]
+     (syntax/loc stx (void n))]
     [(= ~! A from to)
      (with-syntax ([A* #'(pie->binders A)]
                    [from* #'(pie->binders from)]
