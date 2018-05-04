@@ -771,6 +771,9 @@
 (define (get-claim Γ where x)
   (match Γ
     ['() (stop where `("No claim:" ,x))]
+    [(cons (cons y (def _ _)) Γ-next)
+     #:when (eqv? x y)
+     (stop where `("The name" ,x "is already defined."))]
     [(cons (cons y (claim tv)) Γ-next)
      #:when (eqv? x y)
      (go tv)]
