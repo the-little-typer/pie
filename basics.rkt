@@ -168,6 +168,9 @@
      (List 'TODO Srcloc Core)
      (List Core Core)))
 
+;; Laziness is implemented by allowing values to be a closure that
+;; does not bind a variable.
+(struct DELAY ([env : Env] [expr : Core]) #:transparent)
 
 (struct QUOTE ([name : Symbol]) #:transparent)
 (struct ADD1 ([smaller : Value]) #:transparent)
@@ -204,7 +207,8 @@
      EQUAL SAME
      VEC 'VECNIL VEC::
      EITHER LEFT RIGHT
-     NEU))
+     NEU
+     DELAY))
 
 (struct N-var ([name : Symbol]) #:transparent)
 (struct N-TODO ([where : Srcloc] [type : Value]) #:transparent)
