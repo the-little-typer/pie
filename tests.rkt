@@ -1036,6 +1036,110 @@
                      (ADD1 (DELAY (box (ADD1 (DELAY (box (ADD1 (DELAY '#&ZERO)))))))))))))))
 
 
+;; Check thunk sharing between values in the context
+(check-equal?
+ (for/fold ([st init-ctx])
+           ([d (map parse-pie-decl
+                    (list #'(claim three
+                                   Nat)
+                          #'(define three
+                              3)
+                          #'(claim four
+                                   Nat)
+                          #'(define four
+                              (add1 three))
+                          #'(claim ≥-three (-> Nat U))
+                          #'(define ≥-three
+                              (lambda (n)
+                                (which-Nat n
+                                           Absurd
+                                           (lambda (n-1)
+                                             (which-Nat n-1
+                                                        Absurd
+                                                        (lambda (n-2)
+                                                          (which-Nat n-2
+                                                                     Absurd
+                                                                     (lambda (n-3)
+                                                                       Trivial))))))))
+                          #'(claim four≥three
+                                   (≥-three four))
+                          #'(define four≥three sole)
+                          ))])
+   (match d
+     [`(claim ,x ,loc ,t)
+      (match (add-claim st x loc t)
+        [(go new-st) new-st]
+        [(stop where msg)
+         (error (format "Nope: ~a" msg))])]
+     [`(definition ,x ,loc ,v)
+      (match (add-def st x loc v)
+        [(go new-st) new-st]
+        [(stop where msg)
+         (error (format "Nope: ~a" msg))])]))
+ (list
+  (cons 'four≥three (def 'TRIVIAL 'SOLE))
+  (cons
+   '≥-three
+   (def
+     (PI
+      'x
+      (DELAY '#&NAT)
+      (FO-CLOS
+       (list
+        (cons
+         'four
+         (ADD1
+          (DELAY
+           (box
+            (ADD1
+             (DELAY
+              (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))))
+        (cons
+         'three
+         (ADD1
+          (DELAY (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))
+       'x
+       'U))
+     (LAM
+      'n
+      (FO-CLOS
+       (list
+        (cons
+         'four
+         (ADD1
+          (DELAY
+           (box
+            (ADD1
+             (DELAY
+              (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))))
+        (cons
+         'three
+         (ADD1
+          (DELAY (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))
+       'n
+       '(which-Nat
+         n
+         (the U Absurd)
+         (λ (n-1)
+           (which-Nat
+            n-1
+            (the U Absurd)
+            (λ (n-2) (which-Nat n-2 (the U Absurd) (λ (n-3) Trivial))))))))))
+  (cons
+   'four
+   (def
+     'NAT
+     (ADD1
+      (DELAY
+       (box
+        (ADD1
+         (DELAY (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero)))))))))))))
+  (cons
+   'three
+   (def
+     'NAT
+     (ADD1 (DELAY (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))))
+
 (check-equal?
  (rep init-ctx
      (parse-pie #'((the (Pi ((A U) (B U))
