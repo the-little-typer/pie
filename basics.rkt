@@ -170,7 +170,8 @@
 
 ;; Laziness is implemented by allowing values to be a closure that
 ;; does not bind a variable.
-(struct DELAY ([env : Env] [expr : Core]) #:transparent)
+(struct DELAY-CLOS ([env : Env] [expr : Core]) #:transparent)
+(struct DELAY ([val : (Boxof (U DELAY-CLOS Value))]) #:transparent)
 
 (struct QUOTE ([name : Symbol]) #:transparent)
 (struct ADD1 ([smaller : Value]) #:transparent)
