@@ -1,10 +1,12 @@
-#lang typed/racket/base
+#lang typed/racket/no-check
 
 (require racket/match)
-(require (except-in typed/rackunit check))
+;(require (except-in typed/rackunit check))
+(require (except-in rackunit check))
 (require "basics.rkt")
 (require "typechecker.rkt")
-
+(require "parser.rkt")
+#;
 (require/typed "parser.rkt"
   [parse-pie (-> Syntax Src)]
   [parse-pie-decl (-> Syntax (U (List (U 'definition 'claim) Symbol Precise-Loc Src)
@@ -748,14 +750,15 @@
                      [(stop where msg)
                       (error (format "Nope: ~a" msg))])]))
               (list
-               (cons 'eight
-                     (def
-                       'NAT
-                       (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 'ZERO))))))))))
-               (cons 'four
-                     (def
-                       'NAT
-                       (ADD1 (ADD1 (ADD1 (ADD1 'ZERO))))))))
+               (cons
+                'eight
+                (def
+                  'NAT
+                  (ADD1
+                   (DELAY
+                    (list (cons 'four (ADD1 (DELAY '() '(add1 (add1 (add1 zero)))))))
+                    '(add1 (add1 (add1 four)))))))
+               (cons 'four (def 'NAT (ADD1 (DELAY '() '(add1 (add1 (add1 zero)))))))))
 
 
 (check-equal?

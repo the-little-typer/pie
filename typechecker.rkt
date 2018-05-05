@@ -466,8 +466,8 @@
      [`(head ,es)
       (go-on ((`(the ,es-type-out ,es-out)
                (synth Γ r es)))
-        (match (val-in-ctx Γ es-type-out)
-          [(VEC Ev (ADD1 len-1))
+        (match (now (val-in-ctx Γ es-type-out))
+          [(VEC Ev (!! (ADD1 len-1)))
            (go `(the ,(read-back-type Γ Ev)
                      (head ,es-out)))]
           [(VEC Ev non-add1)
@@ -482,8 +482,8 @@
      [`(tail ,es)
       (go-on ((`(the ,es-type-out ,es-out)
                (synth Γ r es)))
-        (match (val-in-ctx Γ es-type-out)
-          [(VEC Ev (ADD1 len-1))
+        (match (now (val-in-ctx Γ es-type-out))
+          [(VEC Ev (!! (ADD1 len-1)))
            (go `(the (Vec ,(read-back-type Γ Ev)
                           ,(read-back Γ 'NAT len-1))
                      (tail ,es-out)))]
@@ -619,7 +619,7 @@
   (define out
    (match (src-stx e)
      [`(λ (,(binder x-loc x)) ,b)
-      (match tv
+      (match (now tv)
         [(PI y A c)
          (let ((x^ (fresh Γ x)))
           (go-on ((b-out (check (bind-free Γ x^ A)
@@ -641,7 +641,7 @@
                        `(λ (,y . ,xs) ,b))))
              tv)]
      [`(cons ,a ,d)
-      (match tv
+      (match (now tv)
         [(SIGMA x A c)
          (go-on ((a-out (check Γ r a A))
                  (d-out (check Γ
@@ -654,7 +654,7 @@
                `("cons requires a Pair or Σ type, but was used as a"
                  ,(read-back-type Γ non-Sigma)))])]
      ['nil
-      (match tv
+      (match (now tv)
         [(LIST E)
          (go 'nil)]
         [non-List
@@ -662,7 +662,7 @@
                `("nil requires a List type, but was used as a"
                  ,(read-back-type Γ non-List)))])]
      [`(same ,c)
-      (match tv
+      (match (now tv)
         [(EQUAL Av fromv tov)
          (go-on ((c-out (check Γ r c Av))
                  (v (go (val-in-ctx Γ c-out)))
@@ -674,8 +674,8 @@
                `("same requires an = type, but was used as a"
                  ,(read-back-type Γ non-=)))])]
      ['vecnil
-      (match tv
-        [(VEC Ev 'ZERO)
+      (match (now tv)
+        [(VEC Ev (!! 'ZERO))
          (go 'vecnil)]
         [(VEC Ev non-zero)
          (stop (src-loc e)
@@ -689,8 +689,8 @@
                  ,(read-back-type Γ non-Vec)
                  "context."))])]
      [`(vec:: ,h ,t)
-      (match tv
-        [(VEC Ev (ADD1 len-1))
+      (match (now tv)
+        [(VEC Ev (!! (ADD1 len-1)))
          (go-on ((h-out (check Γ r h Ev))
                  (t-out (check Γ r t (VEC Ev len-1))))
            (go `(vec:: ,h-out ,t-out)))]
@@ -704,7 +704,7 @@
                  ,(read-back-type Γ non-Vec)
                  "context."))])]
      [`(left ,l)
-      (match tv
+      (match (now tv)
         [(EITHER Lv Rv)
          (go-on ((l-out (check Γ r l Lv)))
            (go `(left ,l-out)))]
@@ -714,7 +714,7 @@
                  ,(read-back-type Γ non-Either)
                  "was expected."))])]
      [`(right ,rght)
-      (match tv
+      (match (now tv)
         [(EITHER Lv Rv)
          (go-on ((r-out (check Γ r rght Rv)))
            (go `(right ,r-out)))]
