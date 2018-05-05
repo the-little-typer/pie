@@ -9,16 +9,27 @@
 (require/typed "locations.rkt" (location->srcloc (-> Loc Srcloc)))
 (provide (all-defined-out))
 
-;; Laziness
+;; Call-by-need evaluation
+
 (: later (-> Env Core Value))
 (define (later ρ expr)
-  (DELAY ρ expr))
+  (DELAY (box (DELAY-CLOS ρ expr))))
+
+(: undelay (-> DELAY-CLOS Value))
+(define (undelay c)
+  (match c
+    [(DELAY-CLOS ρ expr)
+     (now (val-of ρ expr))]))
 
 (: now (-> Value Value))
 (define (now v)
   (match v
-    [(DELAY ρ expr)
-     (now (val-of ρ expr))]
+    [(DELAY (and b (box v)))
+     (if (DELAY-CLOS? v)
+         (let ((the-value (undelay v)))
+           (set-box! b the-value)
+           the-value)
+         v)]
     [other other]))
 
 (define-match-expander !!
