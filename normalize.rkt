@@ -9,18 +9,64 @@
 (require/typed "locations.rkt" (location->srcloc (-> Loc Srcloc)))
 (provide (all-defined-out))
 
-;; Call-by-need evaluation
+
+;;; Call-by-need evaluation
 
+;; Pie is a total language, which means that every program will
+;; eventually terminate. Because the steps taken during evaluation are
+;; completely deterministic, and because Pie is total, it is
+;; acceptable to choose any order of evaluation.
+
+;; On the other hand, many useful Pie programs will take many more
+;; evaluation steps to complete when using strict evaluation. For
+;; instance, consider zerop from chapter 3 of The Little Typer. zerop
+;; returns 'nil when its argument's value has add1 at the top, or 't
+;; if it is zero. If (zerop (double 10000)) is evaluated strictly, the
+;; evaluator will first need to find out that (double 10000) is 20000,
+;; requiring 10000 steps.  On the other hand, if it is evaluated
+;; lazily, then it will need only one step to discover that the value
+;; has add1 at the top.
+
+;; Pie uses call-by-need evaluation. This means that if two different
+;; expressions make use of some expression, such as a definition, then
+;; evaluation steps will be shared between them and will not need to
+;; be repeated.
+
+;; Call-by-need evaluation is achieved by introducing a new value that
+;; represents evaluation that has not yet been performed, but should
+;; instead be performed on demand. That value, which doesn't represent
+;; any value in the Pie sense of the word, is called DELAY and is
+;; defined in basics.rkt. When DELAY represents work that has not yet
+;; been done, it is filled with a special kind of closure called
+;; DELAY-CLOS that pairs an expression with its environment.
+
+;; Not every DELAY represents evaluation that has not yet been
+;; performed. Some represent evaluation that was already demanded by
+;; some other operator. The work is shared by updating the contents of
+;; DELAY with an actual value.
+
+;; later is used to delay evaluation by constructing a DELAY value
+;; that contains a DELAY-CLOS closure.
 (: later (-> Env Core Value))
 (define (later ρ expr)
   (DELAY (box (DELAY-CLOS ρ expr))))
 
+;; undelay is used to find the value that is contained in a
+;; DELAY-CLOS closure by invoking the evaluator.
 (: undelay (-> DELAY-CLOS Value))
 (define (undelay c)
   (match c
     [(DELAY-CLOS ρ expr)
      (now (val-of ρ expr))]))
 
+;; now demands the _actual_ value represented by a DELAY. If the value
+;; is a DELAY-CLOS, then it is computed using undelay. If it is
+;; anything else, then it has already been computed, so it is
+;; returned.
+;;
+;; now should be used any time that a value is inspected to see what
+;; form it has, because those situations require that the delayed
+;; evaluation steps be carried out.
 (: now (-> Value Value))
 (define (now v)
   (match v
@@ -32,6 +78,11 @@
          v)]
     [other other]))
 
+;; !! is a version of now that works in a pattern. This is convenient
+;; because it is sometimes necessary to inspect part of a value that
+;; is not at the top - for instance, when checking vecnil, it is
+;; important that the length in the Vec type's value be precisely
+;; zero.
 (define-match-expander !!
   (lambda (pat-stx)
     (syntax-parse pat-stx
@@ -40,6 +91,8 @@
         (app now p))])))
 
 
+
+;;; Helper for constructing nested Π types
 
 (define-syntax (Π-type stx)
   (syntax-parse stx
@@ -48,6 +101,11 @@
      (syntax/loc stx
        (PI 'x arg-t (HO-CLOS (λ (x) (Π-type (b ...) ret)))))]))
 
+
+;;; The evaluator
+
+;; Functions whose names begin with "do-" are helpers that implement
+;; the corresponding eliminator.
 
 (: do-ap (-> Value Value Value))
 (define (do-ap rator-v rand-v)
@@ -319,6 +377,10 @@
                                        (do-ap mot (RIGHT x)))
                                r))))]))
 
+;; The main evaluator is val-of. Instead of calling itself
+;; recursively, it uses later to delay the evaluation of expressions
+;; other than the outermost constructor or type constructor.
+
 (: val-of (-> Env Core Value))
 (define (val-of ρ e)
   (match e
@@ -420,6 +482,19 @@
          (var-val ρ x)
          (error (format "No evaluator for ~a" x)))]))
 
+
+;;; Context serialization and deserialization
+
+;; In order to support both type checking and a REPL, Pie needs to be
+;; able to serialize contexts (which contain Pie values) into pure
+;; S-expressions (which are simple data that can be saved to disk or
+;; to a network).
+;;
+;; One disadvantage of the current approach is that laziness is
+;; lost. In other words, every value in the context is strictly
+;; evaluated as part of serializing it, which might make that process
+;; slow if there are values that take a long time to compute.
+
 (: read-back-ctx (-> Ctx Serializable-Ctx))
 (define (read-back-ctx Γ)
   (match Γ
@@ -447,11 +522,12 @@
                      [(list 'def t e) (def (val-in-ctx Γ t) (val-in-ctx Γ e))]
                      [(list 'claim t) (claim (val-in-ctx Γ t))]))
              Γ))]))
+
+;;; Normalization
 
-(: val-in-ctx (-> Ctx Core Value))
-(define (val-in-ctx Γ e)
-  (val-of (ctx->env Γ) e))
-
+;; Convert the value of a type back into the Core Pie syntax that
+;; represents it. These read-back types are checked for sameness using
+;; α-equiv?.
 (: read-back-type (-> Ctx Value Core))
 (define (read-back-type Γ tv)
   (match (now tv)
@@ -484,6 +560,9 @@
     [(NEU UNIVERSE ne)
      (read-back-neutral Γ ne)]))
 
+;; Read back the Core Pie expression that represents a value. This
+;; process is determined by the type, which is what allows η-expansion
+;; to occur.
 (: read-back (-> Ctx Value Value Core))
 (define (read-back Γ tv v)
   (match* ((now tv) (now v))
@@ -530,6 +609,9 @@
     [(_ (NEU _ ne))
      (read-back-neutral Γ ne)]))
 
+;; Read back a neutral expression. This process is not determined by
+;; the type, because type-driven reading back has already occurred by
+;; the time that read-back calls read-back-neutral.
 (: read-back-neutral (-> Ctx Neutral Core))
 (define (read-back-neutral Γ ne)
   (match ne
@@ -627,6 +709,13 @@
     [(N-var x) x]
     [(N-TODO where tyv) `(TODO ,where ,(read-back-type Γ tyv))]))
 
+
+;;; General-purpose helpers
+
+;; Given a value for a closure's free variable, find the value. This
+;; cannot be used for DELAY-CLOS, because DELAY-CLOS's laziness
+;; closures do not have free variables, but are instead just delayed
+;; computations.
 (: val-of-closure (-> Closure Value Value))
 (define (val-of-closure c v)
   (match c
@@ -634,8 +723,14 @@
      (val-of (extend-env ρ x v) e)]
     [(HO-CLOS fun) (fun v)]))
 
+;; Find the value of an expression in the environment that
+;; corresponds to a context.
+(: val-in-ctx (-> Ctx Core Value))
+(define (val-in-ctx Γ e)
+  (val-of (ctx->env Γ) e))
 
 
+
 ;; Local Variables:
 ;; eval: (put 'pmatch 'racket-indent-function 1)
 ;; eval: (put 'vmatch 'racket-indent-function 1)

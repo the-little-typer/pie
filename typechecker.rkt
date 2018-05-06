@@ -14,6 +14,37 @@
   [location->srcloc (-> Loc Srcloc)]
   [not-for-info (-> Loc Precise-Loc)])
 
+
+;;; Reporting information
+
+;; The info hook is a procedure to be called by the type checker to
+;; report information about the type of an expression.  The info hook
+;; is called with the position in the source file that it is providing
+;; information about, and the information.
+;;
+;; The information is one of the following:
+;;
+;;  - 'definition, which means that the source position represents a
+;;    defined name. This is used in the interactive slide package to
+;;    enable having the same fonts for defined names as are used in
+;;    The Little Typer.
+;;
+;; - `(binding-site ,TYPE) registers that the position binds a
+;;   variable whose type is TYPE. This is used for tooltips in
+;;   DrRacket as well as in the slides.
+;;
+;; - `(is-type ,TYPE) registers that the position represents the type
+;;   TYPE.
+;;
+;; - `(has-type ,TYPE) registers that the position represents an
+;;   expression with the type TYPE, discovered either through checking
+;;   or synthesis. This is used for tooltips in DrRacket and for
+;;   display in slides.
+;;
+;; - `(TODO ,Γ ,TYPE) registers that the position is a TODO that is
+;;   expected to have the type TYPE in context Γ. This is used for
+;;   tooltips in DrRacket, for the todo-list plugin in DrRacket, and
+;;   for display in slides.
 (: pie-info-hook (Parameterof (-> Loc
                                   (U 'definition
                                      (List 'binding-site Core)
@@ -35,6 +66,13 @@
   (when (location-for-info? where)
     ((pie-info-hook) where what)))
 
+
+;;; Renamings
+
+;; The Pie elaborator ensures that each entry in Γ has a distinct
+;; name, to make it easier for users to discover mistakes induced by
+;; shadowing. To do this, shadowed bindings are renamed, and the
+;; renamings are tracked during elaboration.
 (define-type Renaming (Listof (Pair Symbol Symbol)))
 
 (: rename (-> Renaming Symbol Symbol))
@@ -46,6 +84,9 @@
 (: extend-renaming (-> Renaming Symbol Symbol Renaming))
 (define (extend-renaming r from to)
   (cons (cons from to) r))
+
+
+;;; Check the form of judgment Γ ⊢ e type ↝ c
 
 (: is-type (-> Ctx Renaming Src (Perhaps Core)))
 (define (is-type Γ r in)
@@ -152,6 +193,9 @@
   (go-on ((t the-type))
     (begin (send-pie-info (src-loc in) `(is-type ,t))
            (go t))))
+
+
+;;; Check the form of judgment Γ ⊢ e synth ↝ (the c c)
 
 (: synth (-> Ctx Renaming Src (Perhaps (List 'the Core Core))))
 (define (synth Γ r e)
@@ -613,6 +657,9 @@
     (begin (send-pie-info (src-loc e) `(has-type ,ty))
            the-expr)))
 
+
+;;; Check the form of judgment Γ ⊢ e ∈ e ↝ c
+
 (: check (-> Ctx Renaming Src Value (Perhaps Core)))
 (define (check Γ r e tv)
   (: out (Perhaps Core))
@@ -734,6 +781,9 @@
     (begin (send-pie-info (src-loc e) `(has-type ,(read-back-type Γ tv)))
            out)))
 
+
+;;; Check the form of judgment Γ ⊢ c ≡ c type
+
 (: same-type (-> Ctx Loc Value Value (Perhaps Void)))
 (define (same-type Γ where given expected)
   (let ([given-e (read-back-type Γ given)]
@@ -743,6 +793,9 @@
         (stop where
               `("Expected" ,(read-back-type Γ expected)
                            "but given" ,(read-back-type Γ given))))))
+
+
+;;; Check the form of judgment Γ ⊢ c ≡ c : c
 
 (: convert (-> Ctx Loc Value Value Value (Perhaps Void)))
 (define (convert Γ where tv av bv)
@@ -758,8 +811,8 @@
                 "are not the same"
                 ,(read-back-type Γ tv))))))
 
-;; --------------
-;; Claims + defs
+
+;;; Claims + defs
 
 (: not-used (-> Ctx Loc Symbol (Perhaps #t)))
 (define (not-used Γ where x)
@@ -835,22 +888,10 @@
   (check-false (atom-ok? 'at0m))
   (check-false (atom-ok? '🛶)))
 
+
 ;; Local Variables:
-;; eval: (put 'pmatch 'racket-indent-function 1)
-;; eval: (put 'vmatch 'racket-indent-function 1)
-;; eval: (put 'pmatch-who 'racket-indent-function 2)
-;; eval: (put 'primitive 'racket-indent-function 1)
-;; eval: (put 'derived 'racket-indent-function 0)
-;; eval: (put 'data-constructor 'racket-indent-function 1)
-;; eval: (put 'type-constructor 'racket-indent-function 1)
-;; eval: (put 'tests-for 'racket-indent-function 1)
-;; eval: (put 'hole 'racket-indent-function 1)
 ;; eval: (put 'Π 'racket-indent-function 1)
-;; eval: (put 'Π* 'racket-indent-function 2)
-;; eval: (put 'PI* 'racket-indent-function 1)
 ;; eval: (put 'Σ 'racket-indent-function 1)
-;; eval: (put (intern "?") 'racket-indent-function 1)
-;; eval: (put 'trace-type-checker 'racket-indent-function 1)
 ;; eval: (put 'go-on 'racket-indent-function 1)
 ;; eval: (setq whitespace-line-column 70)
 ;; End:

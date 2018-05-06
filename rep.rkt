@@ -27,8 +27,7 @@
   (match (go-on ((`(the ,t-out ,e-out) (synth Γ '() e)))
                 (let ((tv (val-in-ctx Γ t-out))
                       (v (val-in-ctx Γ e-out)))
-                  (go `(the ,(parameterize ([unfold-defs? #f])
-                               (read-back-type Γ tv))
+                  (go `(the ,(read-back-type Γ tv)
                             ,(read-back Γ tv v)))))
     [(go e) (go e)]
     [(stop where msg)
