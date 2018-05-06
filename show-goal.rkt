@@ -6,6 +6,9 @@
 
 (provide goal->strings indent-string)
 
+;;; This module implements showing TODO goals to users in the format
+;;; described in the second recess of The Little Typer.
+
 (define (goal->strings loc Γ t)
   (define hole-summary
     (with-output-to-string
