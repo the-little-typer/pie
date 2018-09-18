@@ -9,6 +9,90 @@
 (require/typed "locations.rkt" (location->srcloc (-> Loc Srcloc)))
 (provide (all-defined-out))
 
+
+;;; Call-by-need evaluation
+
+;; Pie is a total language, which means that every program will
+;; eventually terminate. Because the steps taken during evaluation are
+;; completely deterministic, and because Pie is total, it is
+;; acceptable to choose any order of evaluation.
+
+;; On the other hand, many useful Pie programs will take many more
+;; evaluation steps to complete when using strict evaluation. For
+;; instance, consider zerop from chapter 3 of The Little Typer. zerop
+;; returns 'nil when its argument's value has add1 at the top, or 't
+;; if it is zero. If (zerop (double 10000)) is evaluated strictly, the
+;; evaluator will first need to find out that (double 10000) is 20000,
+;; requiring 10000 steps.  On the other hand, if it is evaluated
+;; lazily, then it will need only one step to discover that the value
+;; has add1 at the top.
+
+;; Pie uses call-by-need evaluation. This means that if two different
+;; expressions make use of some expression, such as a definition, then
+;; evaluation steps will be shared between them and will not need to
+;; be repeated.
+
+;; Call-by-need evaluation is achieved by introducing a new value that
+;; represents evaluation that has not yet been performed, but should
+;; instead be performed on demand. That value, which doesn't represent
+;; any value in the Pie sense of the word, is called DELAY and is
+;; defined in basics.rkt. When DELAY represents work that has not yet
+;; been done, it is filled with a special kind of closure called
+;; DELAY-CLOS that pairs an expression with its environment.
+
+;; Not every DELAY represents evaluation that has not yet been
+;; performed. Some represent evaluation that was already demanded by
+;; some other operator. The work is shared by updating the contents of
+;; DELAY with an actual value.
+
+;; later is used to delay evaluation by constructing a DELAY value
+;; that contains a DELAY-CLOS closure.
+(: later (-> Env Core Value))
+(define (later ρ expr)
+  (DELAY (box (DELAY-CLOS ρ expr))))
+
+;; undelay is used to find the value that is contained in a
+;; DELAY-CLOS closure by invoking the evaluator.
+(: undelay (-> DELAY-CLOS Value))
+(define (undelay c)
+  (match c
+    [(DELAY-CLOS ρ expr)
+     (now (val-of ρ expr))]))
+
+;; now demands the _actual_ value represented by a DELAY. If the value
+;; is a DELAY-CLOS, then it is computed using undelay. If it is
+;; anything else, then it has already been computed, so it is
+;; returned.
+;;
+;; now should be used any time that a value is inspected to see what
+;; form it has, because those situations require that the delayed
+;; evaluation steps be carried out.
+(: now (-> Value Value))
+(define (now v)
+  (match v
+    [(DELAY (and b (box v)))
+     (if (DELAY-CLOS? v)
+         (let ((the-value (undelay v)))
+           (set-box! b the-value)
+           the-value)
+         v)]
+    [other other]))
+
+;; !! is a version of now that works in a pattern. This is convenient
+;; because it is sometimes necessary to inspect part of a value that
+;; is not at the top - for instance, when checking vecnil, it is
+;; important that the length in the Vec type's value be precisely
+;; zero.
+(define-match-expander !!
+  (lambda (pat-stx)
+    (syntax-parse pat-stx
+      [(!! p)
+       (syntax/loc pat-stx
+        (app now p))])))
+
+
+
+;;; Helper for constructing nested Π types
 
 (define-syntax (Π-type stx)
   (syntax-parse stx
@@ -17,24 +101,29 @@
      (syntax/loc stx
        (PI 'x arg-t (HO-CLOS (λ (x) (Π-type (b ...) ret)))))]))
 
+
+;;; The evaluator
+
+;; Functions whose names begin with "do-" are helpers that implement
+;; the corresponding eliminator.
 
 (: do-ap (-> Value Value Value))
 (define (do-ap rator-v rand-v)
-  (match rator-v
+  (match (now rator-v)
     [(LAM x c)
      (val-of-closure c rand-v)]
-    [(NEU (PI x A c)
+    [(NEU (!! (PI x A c))
           ne)
      (NEU (val-of-closure c rand-v)
           (N-ap ne (THE A rand-v)))]))
 
 (: do-which-Nat (-> Value Value Value Value Value))
 (define (do-which-Nat tgt-v b-tv b-v s-v)
-  (match tgt-v
+  (match (now tgt-v)
     ['ZERO b-v]
     [(ADD1 n-1v)
      (do-ap s-v n-1v)]
-    [(NEU 'NAT ne)
+    [(NEU (!! 'NAT) ne)
      (NEU b-tv
           (N-which-Nat ne
                        (THE b-tv b-v)
@@ -43,11 +132,11 @@
 
 (: do-iter-Nat (-> Value Value Value Value Value))
 (define (do-iter-Nat tgt-v b-tv b-v s-v)
-  (match tgt-v
+  (match (now tgt-v)
     ['ZERO b-v]
     [(ADD1 n-1v)
      (do-ap s-v (do-iter-Nat n-1v b-tv b-v s-v))]
-    [(NEU 'NAT ne)
+    [(NEU (!! 'NAT) ne)
      (NEU b-tv
           (N-iter-Nat ne
                       (THE b-tv b-v)
@@ -56,13 +145,13 @@
 
 (: do-rec-Nat (-> Value Value Value Value Value))
 (define (do-rec-Nat tgt-v b-tv b-v s-v)
-  (match tgt-v
+  (match (now tgt-v)
     ['ZERO b-v]
     [(ADD1 n-1v)
      (do-ap
             (do-ap s-v n-1v)
             (do-rec-Nat n-1v b-tv b-v s-v))]
-    [(NEU 'NAT ne)
+    [(NEU (!! 'NAT) ne)
      (NEU b-tv
           (N-rec-Nat ne
                      (THE b-tv b-v)
@@ -74,12 +163,12 @@
 
 (: do-ind-Nat (-> Value Value Value Value Value))
 (define (do-ind-Nat tgt-v mot-v b-v s-v)
-  (match tgt-v
+  (match (now tgt-v)
     ['ZERO b-v]
     [(ADD1 n-1v)
      (do-ap (do-ap s-v n-1v)
             (do-ind-Nat n-1v mot-v b-v s-v))]
-    [(NEU 'NAT ne)
+    [(NEU (!! 'NAT) ne)
      (NEU (do-ap mot-v tgt-v)
           (N-ind-Nat
            ne
@@ -93,29 +182,29 @@
 
 (: do-car (-> Value Value))
 (define (do-car p-v)
-  (match p-v
+  (match (now p-v)
     [(CONS a d) a]
-    [(NEU (SIGMA x A c) ne)
+    [(NEU (!! (SIGMA x A c)) ne)
      (NEU A (N-car ne))]))
 
 (: do-cdr (-> Value Value))
 (define (do-cdr p-v)
-  (match p-v
+  (match (now p-v)
     [(CONS a d)
      d]
-    [(NEU (SIGMA x A c) ne)
+    [(NEU (!! (SIGMA x A c)) ne)
      (NEU (val-of-closure c (do-car p-v))
           (N-cdr ne))]))
 
 (: do-ind-List (-> Value Value Value Value Value))
 (define (do-ind-List tgt-v mot-v b-v s-v)
-  (match tgt-v
+  (match (now tgt-v)
     ['NIL b-v]
     [(LIST:: h t)
      (do-ap
             (do-ap (do-ap s-v h) t)
             (do-ind-List t mot-v b-v s-v))]
-    [(NEU (LIST E) ne)
+    [(NEU (!! (LIST E)) ne)
      (let ([mot-tv (Π-type ((xs (LIST E))) 'UNIVERSE)])
        (NEU (do-ap mot-v tgt-v)
             (N-ind-List
@@ -130,12 +219,12 @@
 
 (: do-rec-List (-> Value Value Value Value Value))
 (define (do-rec-List tgt-v b-tv b-v s-v)
-  (match tgt-v
+  (match (now tgt-v)
     ['NIL b-v]
     [(LIST:: h t)
      (do-ap (do-ap (do-ap s-v h) t)
             (do-rec-List t b-tv b-v s-v))]
-    [(NEU (LIST E) ne)
+    [(NEU (!! (LIST E)) ne)
      (NEU b-tv
           (N-rec-List
            ne
@@ -148,17 +237,17 @@
 
 (: do-ind-Absurd (-> Value Value Value))
 (define (do-ind-Absurd tgt-v mot-v)
-  (match tgt-v
-    [(NEU ABSURD ne)
+  (match (now tgt-v)
+    [(NEU (!! ABSURD) ne)
      (NEU mot-v
           (N-ind-Absurd ne (THE 'UNIVERSE mot-v)))]))
 
 (: do-replace (-> Value Value Value Value))
 (define (do-replace tgt-v mot-v b-v)
-  (match tgt-v
+  (match (now tgt-v)
     [(SAME v)
      b-v]
-    [(NEU (EQUAL A-v from-v to-v)
+    [(NEU (!! (EQUAL A-v from-v to-v))
           ne)
      (NEU (do-ap mot-v to-v)
           (N-replace ne
@@ -169,43 +258,43 @@
 
 (: do-trans (-> Value Value Value))
 (define (do-trans tgt-1v tgt-2v)
-  (match* (tgt-1v tgt-2v)
+  (match* ((now tgt-1v) (now tgt-2v))
     [((SAME v) (SAME _))
      (SAME v)]
-    [((SAME from-v) (NEU (EQUAL A-v _ to-v) ne2))
+    [((SAME from-v) (NEU (!! (EQUAL A-v _ to-v)) ne2))
      (NEU (EQUAL A-v from-v to-v)
            (N-trans2 (THE (EQUAL A-v from-v from-v) (SAME from-v))
                       ne2))]
-    [((NEU (EQUAL A-v from-v _) ne1) (SAME to-v))
+    [((NEU (!! (EQUAL A-v from-v _)) ne1) (SAME to-v))
      (NEU (EQUAL A-v from-v to-v)
           (N-trans1 ne1 (THE (EQUAL A-v to-v to-v) (SAME to-v))))]
-    [((NEU (EQUAL A-v from-v _) ne1) (NEU (EQUAL _ _ to-v) ne2))
+    [((NEU (!! (EQUAL A-v from-v _)) ne1) (NEU (!! (EQUAL _ _ to-v)) ne2))
      (NEU (EQUAL A-v from-v to-v)
           (N-trans12 ne1 ne2))]))
 
 (: do-cong (-> Value Value Value Value))
 (define (do-cong tgt-v B-v fun-v)
-  (match tgt-v
+  (match (now tgt-v)
     [(SAME v)
      (SAME (do-ap fun-v v))]
-    [(NEU (EQUAL A-v from-v to-v) ne)
+    [(NEU (!! (EQUAL A-v from-v to-v)) ne)
      (NEU (EQUAL B-v (do-ap fun-v from-v) (do-ap fun-v to-v))
           (N-cong ne (THE (Π-type ((x A-v)) B-v) fun-v)))]))
 
 (: do-symm (-> Value Value))
 (define (do-symm tgt-v)
-  (match tgt-v
+  (match (now tgt-v)
     [(SAME v) (SAME v)]
-    [(NEU (EQUAL A-v from-v to-v)
+    [(NEU (!! (EQUAL A-v from-v to-v))
            ne)
      (NEU (EQUAL A-v to-v from-v)
            (N-symm ne))]))
 
 (: do-ind-= (->  Value Value Value Value))
 (define (do-ind-= tgt-v motive-v base-v)
-  (match tgt-v
-    [(SAME v) (do-ap (do-ap base-v v) (SAME v))]
-    [(NEU (EQUAL A from to) ne)
+  (match (now tgt-v)
+    [(SAME v) base-v]
+    [(NEU (!! (EQUAL A from to)) ne)
      (NEU (do-ap (do-ap motive-v to) tgt-v)
           (N-ind-= ne
                    (THE (Π-type ((to A)
@@ -218,17 +307,17 @@
 
 (: do-head (-> Value Value))
 (define (do-head tgt-v)
-  (match tgt-v
+  (match (now tgt-v)
     [(VEC:: hv tv) hv]
-    [(NEU (VEC Ev (ADD1 len-1v))
+    [(NEU (!! (VEC Ev (!! (ADD1 len-1v))))
            ne)
      (NEU Ev (N-head ne))]))
 
 (: do-tail (-> Value Value))
 (define (do-tail tgt-v)
-  (match tgt-v
+  (match (now tgt-v)
     [(VEC:: hv tv) tv]
-    [(NEU (VEC Ev (ADD1 len-1v)) ne)
+    [(NEU (!! (VEC Ev (!! (ADD1 len-1v)))) ne)
      (NEU (VEC Ev len-1v) (N-tail ne))]))
 
 (: ind-Vec-step-type (-> Value Value Value))
@@ -241,12 +330,12 @@
 
 (: do-ind-Vec (-> Value Value Value Value Value Value))
 (define (do-ind-Vec len-v vec-v mot-v b-v s-v)
-  (match* (len-v vec-v)
+  (match* ((now len-v) (now vec-v))
     [('ZERO 'VECNIL) b-v]
     [((ADD1 len-1-v) (VEC:: h t))
      (do-ap (do-ap (do-ap (do-ap s-v len-1-v) h) (do-tail vec-v))
             (do-ind-Vec len-1-v t mot-v b-v s-v))]
-    [((NEU NAT len) (NEU (VEC Ev _) ne))
+    [((NEU (!! 'NAT) len) (NEU (!! (VEC Ev _)) ne))
      (NEU (do-ap (do-ap mot-v len-v) vec-v)
           (N-ind-Vec12 len
                        ne
@@ -257,7 +346,7 @@
                        (THE (do-ap (do-ap mot-v 'ZERO) 'VECNIL) b-v)
                        (THE (ind-Vec-step-type Ev mot-v)
                         s-v)))]
-    [(len-v (NEU (VEC Ev _) ne))
+    [(len-v (NEU (!! (VEC Ev _)) ne))
      (NEU (do-ap (do-ap mot-v len-v) vec-v)
           (N-ind-Vec2 (THE 'NAT len-v)
                       ne
@@ -271,12 +360,12 @@
 
 (: do-ind-Either (-> Value Value Value Value Value))
 (define (do-ind-Either tgt mot l r)
-  (match tgt
+  (match (now tgt)
     [(LEFT x)
      (do-ap l x)]
     [(RIGHT x)
      (do-ap r x)]
-    [(NEU (EITHER Lv Rv) ne)
+    [(NEU (!! (EITHER Lv Rv)) ne)
      (let ([mot-tv (Π-type ((x (EITHER Lv Rv))) 'UNIVERSE)])
        (NEU (do-ap mot tgt)
             (N-ind-Either ne
@@ -288,6 +377,10 @@
                                        (do-ap mot (RIGHT x)))
                                r))))]))
 
+;; The main evaluator is val-of. Instead of calling itself
+;; recursively, it uses later to delay the evaluation of expressions
+;; other than the outermost constructor or type constructor.
+
 (: val-of (-> Env Core Value))
 (define (val-of ρ e)
   (match e
@@ -295,100 +388,113 @@
     ['U 'UNIVERSE]
     ['Nat 'NAT]
     ['zero 'ZERO]
-    [`(add1 ,n) (ADD1 (val-of ρ n))]
+    [`(add1 ,n) (ADD1 (later ρ n))]
     [`(Π ((,x ,A)) ,B)
-     (let ([A-v (val-of ρ A)])
+     (let ([A-v (later ρ A)])
        (PI x A-v (FO-CLOS ρ x B)))]
     [`(λ (,x) ,b)
      (LAM x (FO-CLOS ρ x b))]
     [`(which-Nat ,tgt (the ,b-t ,b) ,s)
-     (do-which-Nat (val-of ρ tgt)
-                   (val-of ρ b-t)
-                   (val-of ρ b)
-                   (val-of ρ s))]
+     (do-which-Nat (later ρ tgt)
+                   (later ρ b-t)
+                   (later ρ b)
+                   (later ρ s))]
     [`(iter-Nat ,tgt (the ,b-t ,b) ,s)
-     (do-iter-Nat (val-of ρ tgt)
-                  (val-of ρ b-t)
-                  (val-of ρ b)
-                  (val-of ρ s))]
+     (do-iter-Nat (later ρ tgt)
+                  (later ρ b-t)
+                  (later ρ b)
+                  (later ρ s))]
     [`(rec-Nat ,tgt (the ,b-t ,b) ,s)
-     (do-rec-Nat (val-of ρ tgt)
-                 (val-of ρ b-t)
-                 (val-of ρ b)
-                 (val-of ρ s))]
+     (do-rec-Nat (later ρ tgt)
+                 (later ρ b-t)
+                 (later ρ b)
+                 (later ρ s))]
     [`(ind-Nat ,tgt ,mot ,b ,s)
-     (do-ind-Nat (val-of ρ tgt)
-                 (val-of ρ mot)
-                 (val-of ρ b)
-                 (val-of ρ s))]
+     (do-ind-Nat (later ρ tgt)
+                 (later ρ mot)
+                 (later ρ b)
+                 (later ρ s))]
     ['Atom 'ATOM]
     [`(Σ ((,x ,A)) ,D)
-     (let ([A-v (val-of ρ A)])
+     (let ([A-v (later ρ A)])
       (SIGMA x A-v (FO-CLOS ρ x D)))]
-    [`(cons ,a ,d) (CONS (val-of ρ a) (val-of ρ d))]
-    [`(car ,p) (do-car (val-of ρ p))]
-    [`(cdr ,p) (do-cdr (val-of ρ p))]
+    [`(cons ,a ,d) (CONS (later ρ a) (later ρ d))]
+    [`(car ,p) (do-car (later ρ p))]
+    [`(cdr ,p) (do-cdr (later ρ p))]
     [`(quote ,a) #:when (symbol? a) (QUOTE a)]
     ['Trivial 'TRIVIAL]
     ['sole 'SOLE]
     ['nil 'NIL]
-    [`(:: ,h ,t) (LIST:: (val-of ρ h) (val-of ρ t))]
-    [`(List ,E) (LIST (val-of ρ E))]
+    [`(:: ,h ,t) (LIST:: (later ρ h) (later ρ t))]
+    [`(List ,E) (LIST (later ρ E))]
     [`(ind-List ,tgt ,mot ,b ,s)
-     (do-ind-List (val-of ρ tgt)
-                  (val-of ρ mot)
-                  (val-of ρ b)
-                  (val-of ρ s))]
+     (do-ind-List (later ρ tgt)
+                  (later ρ mot)
+                  (later ρ b)
+                  (later ρ s))]
     [`(rec-List ,tgt (the ,b-t ,b) ,s)
-     (do-rec-List (val-of ρ tgt)
-                  (val-of ρ b-t)
-                  (val-of ρ b)
-                  (val-of ρ s))]
+     (do-rec-List (later ρ tgt)
+                  (later ρ b-t)
+                  (later ρ b)
+                  (later ρ s))]
     [`Absurd 'ABSURD]
     [`(ind-Absurd ,tgt ,mot)
-     (do-ind-Absurd (val-of ρ tgt) (val-of ρ mot))]
+     (do-ind-Absurd (later ρ tgt) (later ρ mot))]
     [`(= ,A ,from ,to)
-     (EQUAL (val-of ρ A) (val-of ρ from) (val-of ρ to))]
+     (EQUAL (later ρ A) (later ρ from) (later ρ to))]
     [`(same ,e)
-     (SAME (val-of ρ e))]
+     (SAME (later ρ e))]
     [`(replace ,tgt ,mot ,b)
-     (do-replace (val-of ρ tgt) (val-of ρ mot) (val-of ρ b))]
+     (do-replace (later ρ tgt) (later ρ mot) (later ρ b))]
     [`(trans ,p1 ,p2)
-     (do-trans (val-of ρ p1) (val-of ρ p2))]
+     (do-trans (later ρ p1) (later ρ p2))]
     [`(cong ,p1 ,p2 ,p3)
-     (do-cong (val-of ρ p1) (val-of ρ p2) (val-of ρ p3))]
+     (do-cong (later ρ p1) (later ρ p2) (later ρ p3))]
     [`(symm ,p)
-     (do-symm (val-of ρ p))]
+     (do-symm (later ρ p))]
     [`(ind-= ,tgt ,mot ,b)
-     (do-ind-= (val-of ρ tgt) (val-of ρ mot) (val-of ρ b))]
+     (do-ind-= (later ρ tgt) (later ρ mot) (later ρ b))]
     [`(Vec ,E ,len)
-     (VEC (val-of ρ E) (val-of ρ len))]
+     (VEC (later ρ E) (later ρ len))]
     ['vecnil 'VECNIL]
-    [`(vec:: ,h ,t) (VEC:: (val-of ρ h) (val-of ρ t))]
-    [`(head ,es) (do-head (val-of ρ es))]
-    [`(tail ,es) (do-tail (val-of ρ es))]
+    [`(vec:: ,h ,t) (VEC:: (later ρ h) (later ρ t))]
+    [`(head ,es) (do-head (later ρ es))]
+    [`(tail ,es) (do-tail (later ρ es))]
     [`(ind-Vec ,len ,es ,mot ,b ,s)
-     (do-ind-Vec (val-of ρ len)
-                 (val-of ρ es)
-                 (val-of ρ mot)
-                 (val-of ρ b)
-                 (val-of ρ s))]
-    [`(Either ,L ,R) (EITHER (val-of ρ L) (val-of ρ R))]
-    [`(left ,l) (LEFT (val-of ρ l))]
-    [`(right ,r) (RIGHT (val-of ρ r))]
+     (do-ind-Vec (later ρ len)
+                 (later ρ es)
+                 (later ρ mot)
+                 (later ρ b)
+                 (later ρ s))]
+    [`(Either ,L ,R) (EITHER (later ρ L) (later ρ R))]
+    [`(left ,l) (LEFT (later ρ l))]
+    [`(right ,r) (RIGHT (later ρ r))]
     [`(ind-Either ,tgt ,mot ,l ,r)
-     (do-ind-Either (val-of ρ tgt)
-                    (val-of ρ mot)
-                    (val-of ρ l)
-                    (val-of ρ r))]
+     (do-ind-Either (later ρ tgt)
+                    (later ρ mot)
+                    (later ρ l)
+                    (later ρ r))]
     [`(,rator ,rand)
-     (do-ap (val-of ρ rator) (val-of ρ rand))]
+     (do-ap (later ρ rator) (later ρ rand))]
     [`(TODO ,where ,type)
-     (NEU (val-of ρ type) (N-TODO where (val-of ρ type)))]
+     (NEU (later ρ type) (N-TODO where (later ρ type)))]
     [x
      (if (and (symbol? x) (var-name? x))
          (var-val ρ x)
          (error (format "No evaluator for ~a" x)))]))
+
+
+;;; Context serialization and deserialization
+
+;; In order to support both type checking and a REPL, Pie needs to be
+;; able to serialize contexts (which contain Pie values) into pure
+;; S-expressions (which are simple data that can be saved to disk or
+;; to a network).
+;;
+;; One disadvantage of the current approach is that laziness is
+;; lost. In other words, every value in the context is strictly
+;; evaluated as part of serializing it, which might make that process
+;; slow if there are values that take a long time to compute.
 
 (: read-back-ctx (-> Ctx Serializable-Ctx))
 (define (read-back-ctx Γ)
@@ -417,14 +523,15 @@
                      [(list 'def t e) (def (val-in-ctx Γ t) (val-in-ctx Γ e))]
                      [(list 'claim t) (claim (val-in-ctx Γ t))]))
              Γ))]))
+
+;;; Normalization
 
-(: val-in-ctx (-> Ctx Core Value))
-(define (val-in-ctx Γ e)
-  (val-of (ctx->env Γ) e))
-
+;; Convert the value of a type back into the Core Pie syntax that
+;; represents it. These read-back types are checked for sameness using
+;; α-equiv?.
 (: read-back-type (-> Ctx Value Core))
 (define (read-back-type Γ tv)
-  (match tv
+  (match (now tv)
     ['UNIVERSE 'U]
     ['NAT 'Nat]
     [(PI x A c)
@@ -454,9 +561,12 @@
     [(NEU UNIVERSE ne)
      (read-back-neutral Γ ne)]))
 
+;; Read back the Core Pie expression that represents a value. This
+;; process is determined by the type, which is what allows η-expansion
+;; to occur.
 (: read-back (-> Ctx Value Value Core))
 (define (read-back Γ tv v)
-  (match* (tv v)
+  (match* ((now tv) (now v))
     [('UNIVERSE v) (read-back-type Γ v)]
     [('NAT 'ZERO) 'zero]
     [('NAT (ADD1 n-1))
@@ -489,8 +599,8 @@
      `(the Absurd ,(read-back-neutral Γ ne))]
     [((EQUAL Av _ _) (SAME v))
      `(same ,(read-back Γ Av v))]
-    [((VEC Ev 'ZERO) _) 'vecnil]
-    [((VEC Ev (ADD1 len-1v)) (VEC:: h t))
+    [((VEC Ev (!! 'ZERO)) _) 'vecnil]
+    [((VEC Ev (!! (ADD1 len-1v))) (VEC:: h t))
      `(vec:: ,(read-back Γ Ev h)
              ,(read-back Γ (VEC Ev len-1v) t))]
     [((EITHER Lv Rv) (LEFT lv))
@@ -500,6 +610,9 @@
     [(_ (NEU _ ne))
      (read-back-neutral Γ ne)]))
 
+;; Read back a neutral expression. This process is not determined by
+;; the type, because type-driven reading back has already occurred by
+;; the time that read-back calls read-back-neutral.
 (: read-back-neutral (-> Ctx Neutral Core))
 (define (read-back-neutral Γ ne)
   (match ne
@@ -597,6 +710,13 @@
     [(N-var x) x]
     [(N-TODO where tyv) `(TODO ,where ,(read-back-type Γ tyv))]))
 
+
+;;; General-purpose helpers
+
+;; Given a value for a closure's free variable, find the value. This
+;; cannot be used for DELAY-CLOS, because DELAY-CLOS's laziness
+;; closures do not have free variables, but are instead just delayed
+;; computations.
 (: val-of-closure (-> Closure Value Value))
 (define (val-of-closure c v)
   (match c
@@ -604,8 +724,14 @@
      (val-of (extend-env ρ x v) e)]
     [(HO-CLOS fun) (fun v)]))
 
+;; Find the value of an expression in the environment that
+;; corresponds to a context.
+(: val-in-ctx (-> Ctx Core Value))
+(define (val-in-ctx Γ e)
+  (val-of (ctx->env Γ) e))
 
 
+
 ;; Local Variables:
 ;; eval: (put 'pmatch 'racket-indent-function 1)
 ;; eval: (put 'vmatch 'racket-indent-function 1)

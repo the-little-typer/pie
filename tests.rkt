@@ -1,10 +1,12 @@
-#lang typed/racket/base
+#lang typed/racket/no-check
 
 (require racket/match)
-(require (except-in typed/rackunit check))
+;(require (except-in typed/rackunit check))
+(require (except-in rackunit check))
 (require "basics.rkt")
 (require "typechecker.rkt")
-
+(require "parser.rkt")
+#;
 (require/typed "parser.rkt"
   [parse-pie (-> Syntax Src)]
   [parse-pie-decl (-> Syntax (U (List (U 'definition 'claim) Symbol Precise-Loc Src)
@@ -748,15 +750,395 @@
                      [(stop where msg)
                       (error (format "Nope: ~a" msg))])]))
               (list
-               (cons 'eight
-                     (def
-                       'NAT
-                       (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 'ZERO))))))))))
-               (cons 'four
-                     (def
-                       'NAT
-                       (ADD1 (ADD1 (ADD1 (ADD1 'ZERO))))))))
+               (cons
+                'eight
+                (def
+                  'NAT
+                  (ADD1
+                   (DELAY
+                    (box
+                     (DELAY-CLOS
+                      (list
+                       (cons
+                        'four
+                        (ADD1 (DELAY (box
+                                      (DELAY-CLOS '() '(add1 (add1 (add1 zero)))))))))
+                      '(add1 (add1 (add1 four)))))))))
+               (cons
+                'four
+                (def 'NAT (ADD1 (DELAY (box
+                                        (DELAY-CLOS '() '(add1 (add1 (add1 zero)))))))))))
 
+;; Check call-by-need relative to the previous test
+(check-equal? (for/fold ([st init-ctx])
+                        ([d (map parse-pie-decl
+                                 (list #'(claim four
+                                                Nat)
+                                       #'(define four
+                                           4)
+                                       #'(claim eight
+                                                Nat)
+                                       #'(define eight
+                                           (add1 (add1 (add1 (add1 four)))))
+                                       #'(claim force (-> Nat Nat))
+                                       #'(define force
+                                           (lambda (n)
+                                             (iter-Nat n
+                                                       zero
+                                                       (lambda (k)
+                                                         (add1 k)))))
+                                       #'(claim go (= Nat eight (force eight)))
+                                       #'(define go (same eight))))])
+                (match d
+                  [`(claim ,x ,loc ,t)
+                   (match (add-claim st x loc t)
+                     [(go new-st) new-st]
+                     [(stop where msg)
+                      (error (format "Nope: ~a" msg))])]
+                  [`(definition ,x ,loc ,v)
+                   (match (add-def st x loc v)
+                     [(go new-st) new-st]
+                     [(stop where msg)
+                      (error (format "Nope: ~a" msg))])]))
+              (list
+               (cons
+                'go
+                (def
+                  (EQUAL
+                   (DELAY '#&NAT)
+                   (DELAY
+                    (box
+                     (ADD1
+                      (DELAY
+                       (box
+                        (ADD1
+                         (DELAY
+                          (box
+                           (ADD1
+                            (DELAY
+                             (box
+                              (ADD1
+                               (DELAY
+                                (box
+                                 (ADD1
+                                  (DELAY
+                                   (box
+                                    (ADD1
+                                     (DELAY
+                                      (box
+                                       (ADD1
+                                        (DELAY
+                                         (box (ADD1 (DELAY '#&ZERO)))))))))))))))))))))))))
+                   (DELAY
+                    (box
+                     (ADD1
+                      (DELAY
+                       (box
+                        (ADD1
+                         (DELAY
+                          (box
+                           (ADD1
+                            (DELAY
+                             (box
+                              (ADD1
+                               (DELAY
+                                (box
+                                 (ADD1
+                                  (DELAY
+                                   (box
+                                    (ADD1
+                                     (DELAY
+                                      (box
+                                       (ADD1
+                                        (DELAY
+                                         (box (ADD1 (DELAY '#&ZERO))))))))))))))))))))))))))
+                  (SAME
+                   (DELAY
+                    (box
+                     (DELAY-CLOS
+                      (list
+                       (cons
+                        'force
+                        (LAM
+                         'n
+                         (FO-CLOS
+                          (list
+                           (cons
+                            'eight
+                            (ADD1
+                             (DELAY
+                              (box
+                               (ADD1
+                                (DELAY
+                                 (box
+                                  (ADD1
+                                   (DELAY
+                                    (box
+                                     (ADD1
+                                      (DELAY
+                                       (box
+                                        (ADD1
+                                         (DELAY
+                                          (box
+                                           (ADD1
+                                            (DELAY
+                                             (box
+                                              (ADD1
+                                               (DELAY
+                                                (box
+                                                 (ADD1 (DELAY '#&ZERO))))))))))))))))))))))))
+                           (cons
+                            'four
+                            (ADD1
+                             (DELAY
+                              (box
+                               (ADD1
+                                (DELAY
+                                 (box (ADD1 (DELAY (box (ADD1 (DELAY '#&ZERO)))))))))))))
+                          'n
+                          '(iter-Nat n (the Nat zero) (λ (k) (add1 k))))))
+                       (cons
+                        'eight
+                        (ADD1
+                         (DELAY
+                          (box
+                           (ADD1
+                            (DELAY
+                             (box
+                              (ADD1
+                               (DELAY
+                                (box
+                                 (ADD1
+                                  (DELAY
+                                   (box
+                                    (ADD1
+                                     (DELAY
+                                      (box
+                                       (ADD1
+                                        (DELAY
+                                         (box
+                                          (ADD1
+                                           (DELAY
+                                            (box (ADD1 (DELAY '#&ZERO))))))))))))))))))))))))
+                       (cons
+                        'four
+                        (ADD1
+                         (DELAY
+                          (box
+                           (ADD1
+                            (DELAY (box (ADD1 (DELAY (box (ADD1 (DELAY '#&ZERO)))))))))))))
+                      'eight))))))
+               (cons
+                'force
+                (def
+                  (PI
+                   'x
+                   (DELAY '#&NAT)
+                   (FO-CLOS
+                    (list
+                     (cons
+                      'eight
+                      (ADD1
+                       (DELAY
+                        (box
+                         (ADD1
+                          (DELAY
+                           (box
+                            (ADD1
+                             (DELAY
+                              (box
+                               (ADD1
+                                (DELAY
+                                 (box
+                                  (ADD1
+                                   (DELAY
+                                    (box
+                                     (ADD1
+                                      (DELAY
+                                       (box
+                                        (ADD1
+                                         (DELAY
+                                          (box (ADD1 (DELAY '#&ZERO))))))))))))))))))))))))
+                     (cons
+                      'four
+                      (ADD1
+                       (DELAY
+                        (box
+                         (ADD1 (DELAY (box (ADD1 (DELAY (box (ADD1 (DELAY '#&ZERO)))))))))))))
+                    'x
+                    'Nat))
+                  (LAM
+                   'n
+                   (FO-CLOS
+                    (list
+                     (cons
+                      'eight
+                      (ADD1
+                       (DELAY
+                        (box
+                         (ADD1
+                          (DELAY
+                           (box
+                            (ADD1
+                             (DELAY
+                              (box
+                               (ADD1
+                                (DELAY
+                                 (box
+                                  (ADD1
+                                   (DELAY
+                                    (box
+                                     (ADD1
+                                      (DELAY
+                                       (box
+                                        (ADD1
+                                         (DELAY
+                                          (box (ADD1 (DELAY '#&ZERO))))))))))))))))))))))))
+                     (cons
+                      'four
+                      (ADD1
+                       (DELAY
+                        (box
+                         (ADD1 (DELAY (box (ADD1 (DELAY (box (ADD1 (DELAY '#&ZERO)))))))))))))
+                    'n
+                    '(iter-Nat n (the Nat zero) (λ (k) (add1 k)))))))
+               (cons
+                'eight
+                (def
+                  'NAT
+                  (ADD1
+                   (DELAY
+                    (box
+                     (ADD1
+                      (DELAY
+                       (box
+                        (ADD1
+                         (DELAY
+                          (box
+                           (ADD1
+                            (DELAY
+                             (box
+                              (ADD1
+                               (DELAY
+                                (box
+                                 (ADD1
+                                  (DELAY
+                                   (box
+                                    (ADD1
+                                     (DELAY (box (ADD1 (DELAY '#&ZERO)))))))))))))))))))))))))
+               (cons
+                'four
+                (def
+                  'NAT
+                  (ADD1
+                   (DELAY
+                    (box
+                     (ADD1 (DELAY (box (ADD1 (DELAY (box (ADD1 (DELAY '#&ZERO)))))))))))))))
+
+
+;; Check thunk sharing between values in the context
+(check-equal?
+ (for/fold ([st init-ctx])
+           ([d (map parse-pie-decl
+                    (list #'(claim three
+                                   Nat)
+                          #'(define three
+                              3)
+                          #'(claim four
+                                   Nat)
+                          #'(define four
+                              (add1 three))
+                          #'(claim ≥-three (-> Nat U))
+                          #'(define ≥-three
+                              (lambda (n)
+                                (which-Nat n
+                                           Absurd
+                                           (lambda (n-1)
+                                             (which-Nat n-1
+                                                        Absurd
+                                                        (lambda (n-2)
+                                                          (which-Nat n-2
+                                                                     Absurd
+                                                                     (lambda (n-3)
+                                                                       Trivial))))))))
+                          #'(claim four≥three
+                                   (≥-three four))
+                          #'(define four≥three sole)
+                          ))])
+   (match d
+     [`(claim ,x ,loc ,t)
+      (match (add-claim st x loc t)
+        [(go new-st) new-st]
+        [(stop where msg)
+         (error (format "Nope: ~a" msg))])]
+     [`(definition ,x ,loc ,v)
+      (match (add-def st x loc v)
+        [(go new-st) new-st]
+        [(stop where msg)
+         (error (format "Nope: ~a" msg))])]))
+ (list
+  (cons 'four≥three (def 'TRIVIAL 'SOLE))
+  (cons
+   '≥-three
+   (def
+     (PI
+      'x
+      (DELAY '#&NAT)
+      (FO-CLOS
+       (list
+        (cons
+         'four
+         (ADD1
+          (DELAY
+           (box
+            (ADD1
+             (DELAY
+              (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))))
+        (cons
+         'three
+         (ADD1
+          (DELAY (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))
+       'x
+       'U))
+     (LAM
+      'n
+      (FO-CLOS
+       (list
+        (cons
+         'four
+         (ADD1
+          (DELAY
+           (box
+            (ADD1
+             (DELAY
+              (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))))
+        (cons
+         'three
+         (ADD1
+          (DELAY (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))
+       'n
+       '(which-Nat
+         n
+         (the U Absurd)
+         (λ (n-1)
+           (which-Nat
+            n-1
+            (the U Absurd)
+            (λ (n-2) (which-Nat n-2 (the U Absurd) (λ (n-3) Trivial))))))))))
+  (cons
+   'four
+   (def
+     'NAT
+     (ADD1
+      (DELAY
+       (box
+        (ADD1
+         (DELAY (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero)))))))))))))
+  (cons
+   'three
+   (def
+     'NAT
+     (ADD1 (DELAY (box (ADD1 (DELAY (box (DELAY-CLOS '() '(add1 zero))))))))))))
 
 (check-equal?
  (rep init-ctx
@@ -1192,3 +1574,66 @@
         (Π ((x Nat)) (Π ((x₁ Nat)) Nat))
         (λ (x) (λ (y) (iter-Nat x (the Nat y) (λ (x₁) (add1 x₁)))))))
    (succ (def (Π ((x Nat)) Nat) (λ (x) (add1 x))))))
+
+
+;;; Regression test for issue #20, where the evaluation rule for ind-= was wrong.
+
+(check-equal?
+ (read-back-ctx
+  (for/fold ([st init-ctx])
+            ([d (map parse-pie-decl
+                     (list #'(claim my-J
+                                    (Π ((A U) (x A) (C (Π ((y A)) (-> (= A x y) U))))
+                                      (Π ((y A)
+                                          (eq (= A x y)))
+                                        (-> (C x (same x))
+                                            (C y eq)))))
+                           #'(define my-J
+                               (λ (A x C)
+                                 (λ (y eq b)
+                                   (ind-= eq C b))))
+                           #'(claim my-J-works
+                                    (= (= Nat 2 2)
+                                       (my-J Nat 2 (λ (z eq) (= Nat 2 z))
+                                             2 (same 2) (same 2))
+                                       (same 2)))
+                           ;; The conversion check would have crashed here
+                           ;; due to a bad implementation of ind-=
+                           #'(define my-J-works
+                               (same (same 2)))))])
+    (match d
+      [`(claim ,x ,loc ,t)
+       (match (add-claim st x loc t)
+         [(go new-st) new-st]
+         [(stop where msg)
+          (error (format "Nope: ~a" msg))])]
+      [`(definition ,x ,loc ,v)
+       (match (add-def st x loc v)
+         [(go new-st) new-st]
+         [(stop where msg)
+          (error (format "Nope: ~a" msg))])])))
+ '((my-J-works
+    (def
+      (=
+       (= Nat (add1 (add1 zero)) (add1 (add1 zero)))
+       (same (add1 (add1 zero)))
+       (same (add1 (add1 zero))))
+      (same (same (add1 (add1 zero))))))
+   (my-J
+    (def
+      (Π ((A U))
+        (Π ((x A))
+          (Π ((C (Π ((y A)) (Π ((x₁ (= A x y))) U))))
+            (Π ((y A))
+              (Π ((eq (= A x y))) (Π ((x₁ ((C x) (same x)))) ((C y) eq)))))))
+      (λ (A)
+        (λ (x)
+          (λ (C)
+            (λ (y)
+              (λ (eq)
+                (λ (b)
+                  (ind-= eq
+                         (λ (to)
+                           (λ (p)
+                             ((C to) p)))
+                         b)))))))))))

@@ -396,18 +396,20 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
  @pie[Either] represents that there are two possibilities: either an @pie[L]
  with @pie[left] on top, or an @pie[R] with @pie[right] on top.
 }
-@def-constructor[(left [l (Either _L _R)]) _L]{
+@def-constructor[(left [l _L]) (Either _L _R)]{
  @ex[(the (Either Nat Atom) (left 3))
      (eval:error (the (Either Nat Atom) (left 'rosenkål)))]
 }
-@def-constructor[(right [r (Either _L _R)]) _R]{
+@def-constructor[(right [r _R]) (Either _L _R)]{
  @ex[(the (Either Nat Atom) (right 'blomkål))
      (eval:error (the (Either Nat Atom) (right 8)))]
 }
 @def-eliminator[(ind-Either [target (Either _X _Y)]
-                             [motive (-> (Either _X _Y) U)]
-                             [on-left (-> _X (motive target))]
-                             [on-right (-> _Y (motive target))])
+                             [motive (→ (Either _X _Y) U)]
+                             [on-left (Π ((l _L))
+                                        (motive (left l)))]
+                             [on-right (Π ((r _R))
+                                         (motive (right r)))])
                  (motive target)]{
   Induction on @pie[Either] consists of showing how to fulfill the motive for
  both constructors.

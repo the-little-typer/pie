@@ -14,6 +14,7 @@
 (require "pie-err.rkt" (for-syntax "pie-err.rkt"))
 (require "resugar.rkt" (for-syntax "resugar.rkt"))
 (require "pretty.rkt" (for-syntax "pretty.rkt"))
+(require (for-syntax "show-goal.rkt"))
 (require racket/port (for-syntax racket/port))
 (require (prefix-in kw: "pie-info.rkt")
          (for-syntax (prefix-in kw: "pie-info.rkt")))
@@ -151,7 +152,8 @@
                 [`(expression ,e)
                  (match (norm Γ e)
                    [(go out)
-                    (begin (displayln out)
+                    (begin (pprint-pie (resugar out))
+                           (printf "\n")
                            (loop (cdr forms) Γ))]
                    [(stop where why)
                     (raise-pie-error where why)])])]))))
@@ -160,49 +162,30 @@
      (with-syntax ([ctx-string ctx-string]
                    [(hole ...)
                     (for/list ([info (reverse (unbox holes))])
-                      (match-define (list loc Γ t) info)
-                      (define hole-summary
-                        (with-output-to-string
-                          (lambda ()
-                            (pprint-pie (resugar t)))))
-                      (define hole-details
-                        (let* ([hyps (for/list ([H Γ]
-                                                #:when (and (pair? H)
-                                                            (pair? (cdr H))
-                                                            (pair? (cadr H))
-                                                            (eqv? (caadr H) 'free)))
-                                       (match-define (list x (list 'free ty)) H)
-                                       (~a
-                                        (~a x
-                                            #:align 'right
-                                            #:min-width 8
-                                            #:left-pad-string " ")
-                                        " : "
-                                        (resugar ty)))]
-                               [concl hole-summary]
-                               [bar (make-string
-                                     (apply max 7
-                                            (for*/list ([s (cons concl hyps)]
-                                                        [l (string-split s "\n")])
-                                              (string-length l)))
-                                     #\-)])
-                          (string-join (append (reverse hyps) (list bar concl)) "\n")))
+                      (match-define (list loc Γ t)
+                        info)
+                      (match-define (list hole-summary hole-details)
+                        (goal->strings loc Γ t))
 
                       (define hole-output-str
                         (string-append
                          (source-location->prefix loc)
+                         ;; Check whether there are free local variables
                          (if (ormap (lambda (H)
                                       (match H
                                         [(list _ (list 'free _)) #t]
                                         [_ #f]))
                                     Γ)
+                             ;; If there are free vars, print the
+                             ;; version with the horizontal line
                              (string-append "TODO:\n"
                                             hole-details)
+                             ;; If no free vars, show only the goal type.
                              (string-append "TODO: "
                                             (if (string-contains? hole-summary "\n")
-                                                "\n"
-                                                "")
-                                            hole-summary))
+                                                (string-append "\n"
+                                                               (indent-string 1 hole-summary))
+                                                hole-summary)))
                          "\n"))
                       (syntax-property
                        (syntax-property

@@ -1,0 +1,15 @@
+#lang pie
+
+(claim peas (Pi ((n Nat)) (Vec Atom n)))
+(define peas
+  (λ (n)
+    (ind-Nat n
+      (lambda (k) (Vec Atom k))
+      vecnil
+      (λ (n-1 peas-of-n-1)
+        (vec:: TODO TODO)))))
+
+(claim some-nat Nat)
+(define some-nat TODO)
+(claim multi-line (Pi ((n Nat)) (Vec Atom n)))
+(define multi-line TODO)
