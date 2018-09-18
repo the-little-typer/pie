@@ -135,23 +135,11 @@
       (parens
        (display elim)
        (space)
-       
+       (hsep print-pie targets)
        (match normal
-         [(list)
-          (terpri)]
-         [(list motive)
-          (indented (+ (string-length elim) 1)
-                    (print-pie motive))
-          (terpri)]
+         [(list) (void)]
          [(cons motive others)
-          (indented (+ (string-length elim) 1)
-                    (print-pie motive))
-          (indented 3
-                    (terpri)
-                    (vsep print-pie others))])
-       (indented 1
-                 (terpri)
-                 (vsep print-pie targets)))]
+          (indented 2 (terpri) (vsep print-pie (cons motive others)))]))]
      [(cons (and op (? simple-elim? (app symbol->string elim))) args)
       (match-define (cons target normal) args)
       (parens

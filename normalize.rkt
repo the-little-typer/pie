@@ -189,7 +189,7 @@
     [(SAME v)
      (SAME (do-ap fun-v v))]
     [(NEU (EQUAL A-v from-v to-v) ne)
-     (NEU (EQUAL A-v (do-ap fun-v from-v) (do-ap fun-v to-v))
+     (NEU (EQUAL B-v (do-ap fun-v from-v) (do-ap fun-v to-v))
           (N-cong ne (THE (Π-type ((x A-v)) B-v) fun-v)))]))
 
 (: do-symm (-> Value Value))
@@ -291,6 +291,7 @@
 (: val-of (-> Env Core Value))
 (define (val-of ρ e)
   (match e
+    [`(the ,t ,expr) (val-of ρ expr)]
     ['U 'UNIVERSE]
     ['Nat 'NAT]
     ['zero 'ZERO]
