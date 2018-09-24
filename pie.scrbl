@@ -147,8 +147,8 @@ is supported by Pie. Each @pie[TODO] in the program is listed.
 @def-type-constructor[Nat]{
  The natural numbers, called @pie[Nat], are all the numbers greater than or equal to zero.
 }
-@def-constructor[zero Atom]{@pie[zero] is the smallest @pie[Nat].}
-@def-constructor[(add1 [n Nat]) Atom]{@pie[add1] makes a @pie[Nat] one larger.}
+@def-constructor[zero Nat]{@pie[zero] is the smallest @pie[Nat].}
+@def-constructor[(add1 [n Nat]) Nat]{@pie[add1] makes a @pie[Nat] one larger.}
 @def-eliminator[(which-Nat [target Nat] [base _X] [step (-> Nat _X)]) _X]{
  @pie[which-Nat] is a case operator on @pie[Nat].
  @ex[(which-Nat 0 0 (λ (smaller) smaller))
