@@ -473,7 +473,7 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
  @pieblock[(→ _X
              _Y)]
  then @pie[(cong target fun)] is an
- @pieblock[(= _X (fun _from) (fun _to))]
+ @pieblock[(= _Y (fun _from) (fun _to))]
 }
 @def-eliminator[(ind-= [target (= _A _from _to)]
                         [motive (Π ((x _A))
