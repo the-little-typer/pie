@@ -384,11 +384,10 @@
      (make-ind-Either stx (parse-pie #'tgt) (parse-pie #'mot) (parse-pie #'l) (parse-pie #'r))]
     [(~describe "TODO" TODO)
      (make-TODO stx)]
-    [(~describe "application"
-                ((~describe "rator" rator)
-                 (~describe "rand" rand0)
-                 (~describe "rand" rand)
-                 ...))
+    [(~describe "function application"
+                ((~describe "function" rator)
+                 (~describe "first argument" rand0)
+                 (~describe "more arguments" rand) ...))
      (make-ap stx (parse-pie #'rator) (parse-pie #'rand0) (map parse-pie (syntax->list #'(rand ...))))]))
 
 (define (parse-pie-decl stx)
