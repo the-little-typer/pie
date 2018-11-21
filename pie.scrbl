@@ -154,7 +154,7 @@ is supported by Pie. Each @pie[TODO] in the program is listed.
  @ex[(which-Nat 0 0 (λ (smaller) smaller))
      (which-Nat 17 0 (λ (smaller) smaller))]
 }
-@def-eliminator[(iter-Nat [target Nat] [base _X] [step (-> Nat _X)]) _X]{
+@def-eliminator[(iter-Nat [target Nat] [base _X] [step (-> _X _X)]) _X]{
  @pie[iter-Nat] applies @pie[step] to @pie[base] @pie[target] times.
  @ex[(iter-Nat 5
        0
