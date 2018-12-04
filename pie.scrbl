@@ -147,14 +147,14 @@ is supported by Pie. Each @pie[TODO] in the program is listed.
 @def-type-constructor[Nat]{
  The natural numbers, called @pie[Nat], are all the numbers greater than or equal to zero.
 }
-@def-constructor[zero Atom]{@pie[zero] is the smallest @pie[Nat].}
-@def-constructor[(add1 [n Nat]) Atom]{@pie[add1] makes a @pie[Nat] one larger.}
+@def-constructor[zero Nat]{@pie[zero] is the smallest @pie[Nat].}
+@def-constructor[(add1 [n Nat]) Nat]{@pie[add1] makes a @pie[Nat] one larger.}
 @def-eliminator[(which-Nat [target Nat] [base _X] [step (-> Nat _X)]) _X]{
  @pie[which-Nat] is a case operator on @pie[Nat].
  @ex[(which-Nat 0 0 (λ (smaller) smaller))
      (which-Nat 17 0 (λ (smaller) smaller))]
 }
-@def-eliminator[(iter-Nat [target Nat] [base _X] [step (-> Nat _X)]) _X]{
+@def-eliminator[(iter-Nat [target Nat] [base _X] [step (-> _X _X)]) _X]{
  @pie[iter-Nat] applies @pie[step] to @pie[base] @pie[target] times.
  @ex[(iter-Nat 5
        0
@@ -396,18 +396,20 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
  @pie[Either] represents that there are two possibilities: either an @pie[L]
  with @pie[left] on top, or an @pie[R] with @pie[right] on top.
 }
-@def-constructor[(left [l (Either _L _R)]) _L]{
+@def-constructor[(left [l _L]) (Either _L _R)]{
  @ex[(the (Either Nat Atom) (left 3))
      (eval:error (the (Either Nat Atom) (left 'rosenkål)))]
 }
-@def-constructor[(right [r (Either _L _R)]) _R]{
+@def-constructor[(right [r _R]) (Either _L _R)]{
  @ex[(the (Either Nat Atom) (right 'blomkål))
      (eval:error (the (Either Nat Atom) (right 8)))]
 }
 @def-eliminator[(ind-Either [target (Either _X _Y)]
-                             [motive (-> (Either _X _Y) U)]
-                             [on-left (-> _X (motive target))]
-                             [on-right (-> _Y (motive target))])
+                             [motive (→ (Either _X _Y) U)]
+                             [on-left (Π ((l _L))
+                                        (motive (left l)))]
+                             [on-right (Π ((r _R))
+                                         (motive (right r)))])
                  (motive target)]{
   Induction on @pie[Either] consists of showing how to fulfill the motive for
  both constructors.
@@ -471,7 +473,7 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
  @pieblock[(→ _X
              _Y)]
  then @pie[(cong target fun)] is an
- @pieblock[(= _X (fun _from) (fun _to))]
+ @pieblock[(= _Y (fun _from) (fun _to))]
 }
 @def-eliminator[(ind-= [target (= _A _from _to)]
                         [motive (Π ((x _A))

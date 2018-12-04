@@ -16,6 +16,8 @@
          location->srcloc
          Srcloc)
 
+
+;;; Source locations
 
 (define-type Srcloc (List String Integer Integer Integer Integer))
 
@@ -31,7 +33,8 @@
 ;;; it should not be a trivial value.
 (define-type Loc Precise-Loc)
 
-;%%%%%DPF Portland+2 Shouldn't Pie Keywords include ind-Sigma (?)  
+
+;;; Keywords
 
 (define-type Pie-Keyword
   (U 'U
@@ -47,9 +50,12 @@
      'Either 'left 'right 'ind-Either
      'TODO 'the))
 
+
 ;;; Abstract syntax of high-level programs
 
-
+;; @ associates a source location with a Pie expression or
+;; declaration. This allows the implementation to report give precise,
+;; helpful feedback.
 (struct @ ([loc : Loc]
            [stx : Src-Stx])
   #:transparent
@@ -69,6 +75,11 @@
 (define-type Typed-Binder
   (List Binding-Site Src))
 
+
+;;; Pie expressions consist of a source location attached by @ to an
+;;; S-expression that follows the structure defined in The Little
+;;; Typer. Each sub-expression also has a source location, so they are
+;;; Src rather than Src-Stx.
 (define-type Src-Stx
   (U (List 'the Src Src)
      'U
@@ -120,8 +131,10 @@
      'TODO
      (List* Src Src (Listof Src))))
 
-
-
+;; Core Pie expressions are the result of type checking (elaborating)
+;; an expression written in Pie. They do not have source positions,
+;; because they by definition are not written by a user of the
+;; implementation.
 (define-type Core
   (U (List 'the Core Core)
      'U
@@ -168,6 +181,28 @@
      (List 'TODO Srcloc Core)
      (List Core Core)))
 
+
+;;; Values
+
+;; In order to type check Pie, it is necessary to find the normal
+;; forms of expressions and compare them with each other. The normal
+;; form of an expression is determined by its type - types that have
+;; η-rules (such as Π, Σ, Trivial, and Absurd) impose requirements on
+;; the normal form. For instance, every normal function has λ at the
+;; top, and every normal pair has cons at the top.
+
+;; Finding normal forms has two steps: first, programs are evaluated,
+;; much as they are with the Scheme interpreter at the end of The
+;; Little Schemer. Then, these values are "read back" into the syntax
+;; of their normal forms. This happens in normalize.rkt. This file
+;; defines the values that expressions can have. Structures or symbols
+;; that represent values are written in ALL-CAPS.
+
+;; Laziness is implemented by allowing values to be a closure that
+;; does not bind a variable. It is described in normalize.rkt (search
+;; for "Call-by-need").
+(struct DELAY-CLOS ([env : Env] [expr : Core]) #:transparent)
+(struct DELAY ([val : (Boxof (U DELAY-CLOS Value))]) #:transparent)
 
 (struct QUOTE ([name : Symbol]) #:transparent)
 (struct ADD1 ([smaller : Value]) #:transparent)
@@ -204,7 +239,12 @@
      EQUAL SAME
      VEC 'VECNIL VEC::
      EITHER LEFT RIGHT
-     NEU))
+     NEU
+     DELAY))
+
+
+;; Neutral expressions are represented by structs that ensure that no
+;; non-neutral expressions can be represented.
 
 (struct N-var ([name : Symbol]) #:transparent)
 (struct N-TODO ([where : Srcloc] [type : Value]) #:transparent)
@@ -273,23 +313,63 @@
 
 (define-predicate Neutral? Neutral)
 
+;; Normal forms consist of syntax that is produced by read-back,
+;; following the type. This structure contains a type value and a
+;; value described by the type, so that read-back can later be applied
+;; to it.
 (struct THE ([type : Value] [value : Value]) #:transparent #:type-name Norm)
 
 (define-predicate Norm? Norm)
 
+
+;;; Error handling
+
+;; Messages to be shown to the user contain a mix of text (represented
+;; as strings) and expressions (represented as Core Pie expressions).
 (define-type Message
   (Listof (U String Core)))
 
+;; The result of an operation that can fail, such as type checking, is
+;; represented using either the stop or the go structures.
 (define-type (Perhaps α)
   (U (go α) stop))
 
+;; A successful result
 (struct (α) go ([result : α]) #:transparent)
+
+;; An error message
 (struct stop ([where : Loc] [message : Message]) #:transparent)
 
+;; go-on is very much like let*. The difference is that if any of the
+;; values bound to variables in it are stop, then the entire
+;; expression becomes that first stop. Otherwise, the variables are
+;; bound to the contents of each go.
+(define-syntax (go-on stx)
+  (syntax-parse stx
+    [(go-on () e) (syntax/loc stx e)]
+    [(go-on ((p0 b0) (p b) ...) e)
+     (syntax/loc stx
+       (match b0
+         [(go p0) (go-on ((p b) ...) e)]
+         [(stop where msg) (stop where msg)]))]))
+
+
+;;; Recognizing variable names
+
+;; This macro causes a name to be defined both for Racket macros and
+;; for use in ordinary Racket programs. In Racket, these are
+;; separated.
+;;
+;; Variable name recognition is needed in Racket macros in order to
+;; parse Pie into the Src type, and it is needed in ordinary programs
+;; in order to implement the type checker.
 (define-syntax-rule (define-here-and-for-syntax what impl)
   (begin (define what impl)
          (begin-for-syntax (define what impl))))
 
+;; The type of var-name? guarantees that the implementation will
+;; always accept symbols that are not Pie keywords, and never accept
+;; those that are.
 (: var-name? (-> Symbol Boolean :
                  #:+ (! Pie-Keyword)
                  #:- Pie-Keyword))
@@ -313,22 +393,40 @@
            (eqv? x 'TODO))))
 
 
-(define-syntax (go-on stx)
-  (syntax-parse stx
-    [(go-on () e) (syntax/loc stx e)]
-    [(go-on ((p0 b0) (p b) ...) e)
-     (syntax/loc stx
-       (match b0
-         [(go p0) (go-on ((p b) ...) e)]
-         [(stop where msg) (stop where msg)]))]))
+
+
+;;; Contexts
+
+;; A context maps free variable names to binders.
+(define-type Ctx
+  (Listof (Pair Symbol Binder)))
 
 
-
+;; There are three kinds of binders: a free binder represents a free
+;; variable, that was bound in some larger context by λ, Π, or Σ. A
+;; def binder represents a name bound by define. A claim binder
+;; doesn't actually bind a name; however, it reserves the name for
+;; later definition with define and records the type that will be
+;; used.
 (define-type Binder (U Def Free Claim))
 (define-type Claim claim)
 (struct claim ([type : Value]) #:transparent)
 (struct def ([type : Value] [value : Value]) #:transparent #:type-name Def)
 (struct free ([type : Value]) #:transparent #:type-name Free)
+
+
+;; To find the type of a variable in a context, find the closest
+;; non-claim binder and extract its type.
+(: var-type (-> Ctx Loc Symbol (Perhaps Value)))
+(define (var-type Γ where x)
+  (match Γ
+    ['() (stop where `("Unknown variable" ,x))]
+    [(cons (cons y (claim tv)) Γ-next)
+     (var-type Γ-next where x)]
+    [(cons (cons y b) Γ-next)
+     (if (eqv? x y)
+         (go (binder-type b))
+         (var-type Γ-next where x))]))
 
 (: binder-type (-> Binder Value))
 (define (binder-type b)
@@ -337,37 +435,7 @@
     [(def tv v) tv]
     [(free tv) tv]))
 
-(define-type Ctx
-  (Listof (Pair Symbol Binder)))
-
-(define-type Serializable-Ctx
-  (Listof (List Symbol (U (List 'free Core)
-                          (List 'def Core Core)
-                          (List 'claim Core)))))
-
-(define-predicate serializable-ctx? Serializable-Ctx)
-
-(define-type Env
-  (Listof (Pair Symbol Value)))
-
-(: ctx->env (-> Ctx Env))
-(define (ctx->env Γ)
-  (match Γ
-    [(cons (cons x (def tv v)) Γ-next)
-     (cons (cons x v)
-           (ctx->env Γ-next))]
-    [(cons (cons x (free tv)) Γ-next)
-     (cons (cons x (NEU tv (N-var x)))
-           (ctx->env Γ-next))]
-    [(cons (cons x (claim tv)) Γ-next)
-     (ctx->env Γ-next)]
-    ['() '()]))
-
-(define-type Closure (U FO-CLOS HO-CLOS))
-(struct FO-CLOS ([env : Env] [var : Symbol] [expr : Core]) #:transparent)
-(struct HO-CLOS ([proc : (-> Value Value)]) #:transparent)
-
-
+;; The starting context is empty.
 (: init-ctx Ctx)
 (define init-ctx '())
 
@@ -381,55 +449,112 @@
 (define (bind-val Γ x tv v)
   (cons (cons x (def tv v)) Γ))
 
+
+;; For informationa bout serializable contexts, see the comments in
+;; normalize.rkt.
+(define-type Serializable-Ctx
+  (Listof (List Symbol (U (List 'free Core)
+                          (List 'def Core Core)
+                          (List 'claim Core)))))
+
+(define-predicate serializable-ctx? Serializable-Ctx)
+
+
+
+
+;;; Run-time environments
+
+;; A run-time environment associates a value with each variable.
+(define-type Env
+  (Listof (Pair Symbol Value)))
+
+;; When type checking Pie, it is sometimes necessary to find the
+;; normal form of an expression that has free variables. These free
+;; variables are described in the type checking context. The value
+;; associated with each free variable should be itself - a neutral
+;; expression. ctx->env converts a context into an environment by
+;; assigning a neutral expression to each variable.
+(: ctx->env (-> Ctx Env))
+(define (ctx->env Γ)
+  (match Γ
+    [(cons (cons x (def tv v)) Γ-next)
+     (cons (cons x v)
+           (ctx->env Γ-next))]
+    [(cons (cons x (free tv)) Γ-next)
+     (cons (cons x (NEU tv (N-var x)))
+           (ctx->env Γ-next))]
+    [(cons (cons x (claim tv)) Γ-next)
+     (ctx->env Γ-next)]
+    ['() '()]))
+
+;; Extend an environment with a value for a new variable.
 (: extend-env (-> Env Symbol Value Env))
 (define (extend-env ρ x v) (cons (cons x v) ρ))
 
-(: unfold-defs? (Parameterof Boolean))
-(define unfold-defs? (make-parameter #t))
-
+;; To find the value of a variable in an environment, look it up in
+;; the usual Lisp way using assv.
 (: var-val (-> Env Symbol Value))
 (define (var-val ρ x)
   (match (assv x ρ)
     [(cons y v) v]
     [#f (error (format "Variable ~a not in\n\tρ: ~a\n" x ρ))]))
 
-(: var-type (-> Ctx Loc Symbol (Perhaps Value)))
-(define (var-type Γ where x)
-  (match Γ
-    ['() (stop where `("Unknown variable" ,x))]
-    [(cons (cons y (claim tv)) Γ-next)
-     (var-type Γ-next where x)]
-    [(cons (cons y b) Γ-next)
-     (if (eqv? x y)
-         (go (binder-type b))
-         (var-type Γ-next where x))]))
 
+
+;;; Closures
+
+;; There are two kinds of closures: first-order closures and
+;; higher-order closures. They are used for different purposes in
+;; Pie. It would be possible to have only one representation, but they
+;; are good for different things, so both are included. See
+;; val-of-closure in normalize.rkt for how to find the value of a
+;; closure, given the value for its free variable.
+(define-type Closure (U FO-CLOS HO-CLOS))
+
+;; First-order closures, which are a pair of an environment an an
+;; expression whose free variables are given values by the
+;; environment, are used for most closures in Pie. They are easier to
+;; debug, because their contents are visible rather than being part of
+;; a compiled Racket function. On the other hand, they are more
+;; difficult to construct out of values, because it would be necessary
+;; to first read the values back into Core Pie syntax.
+(struct FO-CLOS ([env : Env] [var : Symbol] [expr : Core]) #:transparent)
+
+;; Higher-order closures re-used Racket's built-in notion of
+;; closure. They are more convenient when constructing closures from
+;; existing values, which happens both during type checking, where
+;; these values are used for things like the type of a step, and
+;; during evaluation, where they are used as type annotations on THE
+;; and NEU.
+(struct HO-CLOS ([proc : (-> Value Value)]) #:transparent)
+
+
+;;; Finding fresh names
+
+;; Find a fresh name, using none of those described in a context.
+;;
+;; This is the implementation of the Γ ⊢ fresh ↝ x form of
+;; judgment. Unlike the rules in the appendix to The Little Typer,
+;; this implementation also accepts a name suggestion so that the code
+;; produced by elaboration has names that are as similar as possible
+;; to those written by the user.
+(: fresh (-> Ctx Symbol Symbol))
+(define (fresh Γ x)
+  (freshen (names-only Γ) x))
+
+;; Find the names that are described in a context, so they can be
+;; avoided.
 (: names-only (-> Ctx (Listof Symbol)))
 (define (names-only Γ)
   (cond
     [(null? Γ) '()]
     [else (cons (car (car Γ)) (names-only (cdr Γ)))]))
 
-(: fresh (-> Ctx Symbol Symbol))
-(define (fresh Γ x)
-  (freshen (names-only Γ) x))
 
+
 ;; Local Variables:
-;; eval: (put 'pmatch 'racket-indent-function 1)
-;; eval: (put 'vmatch 'racket-indent-function 1)
-;; eval: (put 'pmatch-who 'racket-indent-function 2)
-;; eval: (put 'primitive 'racket-indent-function 1)
-;; eval: (put 'derived 'racket-indent-function 0)
-;; eval: (put 'data-constructor 'racket-indent-function 1)
-;; eval: (put 'type-constructor 'racket-indent-function 1)
-;; eval: (put 'tests-for 'racket-indent-function 1)
-;; eval: (put 'hole 'racket-indent-function 1)
 ;; eval: (put 'Π 'racket-indent-function 1)
-;; eval: (put 'Π* 'racket-indent-function 2)
-;; eval: (put 'PI* 'racket-indent-function 1)
 ;; eval: (put 'Σ 'racket-indent-function 1)
-;; eval: (put (intern "?") 'racket-indent-function 1)
-;; eval: (put 'trace-type-checker 'racket-indent-function 1)
 ;; eval: (put 'go-on 'racket-indent-function 1)
 ;; eval: (setq whitespace-line-column 70)
 ;; End:

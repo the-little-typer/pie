@@ -384,11 +384,10 @@
      (make-ind-Either stx (parse-pie #'tgt) (parse-pie #'mot) (parse-pie #'l) (parse-pie #'r))]
     [(~describe "TODO" TODO)
      (make-TODO stx)]
-    [(~describe "application"
-                ((~describe "rator" rator)
-                 (~describe "rand" rand0)
-                 (~describe "rand" rand)
-                 ...))
+    [(~describe "function application"
+                ((~describe "function" rator)
+                 (~describe "first argument" rand0)
+                 (~describe "more arguments" rand) ...))
      (make-ap stx (parse-pie #'rator) (parse-pie #'rand0) (map parse-pie (syntax->list #'(rand ...))))]))
 
 (define (parse-pie-decl stx)
@@ -622,7 +621,7 @@
     [x:pie-id
      stx]
     [Absurd
-     (syntax/loc stx kw:Absurd)]
+     (add-disappeared (syntax/loc stx kw:Absurd) stx)]
     [(ind-Absurd ~! tgt mot)
      (with-syntax ([tgt* #'(pie->binders tgt)]
                    [mot* #'(pie->binders mot)]
@@ -630,7 +629,7 @@
        (add-disappeared (syntax/loc stx (void ind-Absurd/loc tgt* mot*))
                         (car (syntax-e stx))))]
     [n:nat
-     (syntax/loc stx n)]
+     (syntax/loc stx (void n))]
     [(= ~! A from to)
      (with-syntax ([A* #'(pie->binders A)]
                    [from* #'(pie->binders from)]
