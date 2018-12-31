@@ -233,6 +233,9 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
 @def-type-constructor[(Pi ((x X1) (y X2) ...) B)]{
  @pie[Pi] is an alias for @pie[Π].
 }
+@def-type-constructor[(∏ ((x X1) (y X2) ...) B)]{
+ @pie[∏] is an alias for @pie[Π] that is easier to type on some keyboards.
+}
 @def-type-constructor[(→ X1 X2 ... B)]{
  @pie[→], pronounced "arrow", is shorter way of writing @pie[(Π ((x X1) (x X2) ...) B)] when the identifiers @racket[x ...] are not used.}
 @def-type-constructor[(-> X1 X2 ... B)]{@pie[->] is an alias for @pie[→].}

@@ -396,7 +396,7 @@
                "car" "cdr" "cong" "trans" "symm" "replace")
               'keyword]
              [("U"
-               "Π" "Pi" "->" "→"
+               "Π" "Pi" "∏" "->" "→"
                "Σ" "Sigma" "Pair"
                "Either"
                "Atom"

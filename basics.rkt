@@ -39,7 +39,7 @@
 (define-type Pie-Keyword
   (U 'U
      'Nat 'zero 'add1 'which-Nat 'iter-Nat 'rec-Nat 'ind-Nat
-     '-> '→ 'Π 'λ 'Pi 'lambda
+     '-> '→ 'Π 'λ 'Pi '∏ 'lambda
      'quote 'Atom
      'car 'cdr 'cons 'Σ 'Sigma 'Pair
      'Trivial 'sole
@@ -377,7 +377,7 @@
   (not (or (eqv? x 'U) (eqv? x 'Nat) (eqv? x 'zero)
            (eqv? x 'add1) (eqv? x 'which-Nat) (eqv? x 'ind-Nat)
            (eqv? x 'rec-Nat) (eqv? x 'iter-Nat)
-           (eqv? x '->) (eqv? x '→) (eqv? x 'Π) (eqv? x 'Pi) (eqv? x 'λ) (eqv? x 'lambda)
+           (eqv? x '->) (eqv? x '→) (eqv? x 'Π) (eqv? x 'Pi) (eqv? x '∏) (eqv? x 'λ) (eqv? x 'lambda)
            (eqv? x 'quote) (eqv? x 'Atom) (eqv? x 'Σ) (eqv? x 'Sigma) (eqv? x 'Pair)
            (eqv? x 'cons) (eqv? x 'car) (eqv? x 'cdr)
            (eqv? x 'Trivial) (eqv? x 'sole)

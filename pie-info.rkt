@@ -22,7 +22,7 @@
 (define-pie-keywords
   U
   Nat zero add1 which-Nat iter-Nat rec-Nat ind-Nat
-  -> → Π λ Pi lambda
+  -> → Π Pi ∏ λ lambda
   quote Atom
   car cdr cons Σ Sigma Pair
   Trivial sole
