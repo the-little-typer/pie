@@ -147,14 +147,14 @@ is supported by Pie. Each @pie[TODO] in the program is listed.
 @def-type-constructor[Nat]{
  The natural numbers, called @pie[Nat], are all the numbers greater than or equal to zero.
 }
-@def-constructor[zero Atom]{@pie[zero] is the smallest @pie[Nat].}
-@def-constructor[(add1 [n Nat]) Atom]{@pie[add1] makes a @pie[Nat] one larger.}
+@def-constructor[zero Nat]{@pie[zero] is the smallest @pie[Nat].}
+@def-constructor[(add1 [n Nat]) Nat]{@pie[add1] makes a @pie[Nat] one larger.}
 @def-eliminator[(which-Nat [target Nat] [base _X] [step (-> Nat _X)]) _X]{
  @pie[which-Nat] is a case operator on @pie[Nat].
  @ex[(which-Nat 0 0 (λ (smaller) smaller))
      (which-Nat 17 0 (λ (smaller) smaller))]
 }
-@def-eliminator[(iter-Nat [target Nat] [base _X] [step (-> Nat _X)]) _X]{
+@def-eliminator[(iter-Nat [target Nat] [base _X] [step (-> _X _X)]) _X]{
  @pie[iter-Nat] applies @pie[step] to @pie[base] @pie[target] times.
  @ex[(iter-Nat 5
        0
@@ -232,6 +232,9 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
 }
 @def-type-constructor[(Pi ((x X1) (y X2) ...) B)]{
  @pie[Pi] is an alias for @pie[Π].
+}
+@def-type-constructor[(∏ ((x X1) (y X2) ...) B)]{
+ @pie[∏] is an alias for @pie[Π] that is easier to type on some keyboards.
 }
 @def-type-constructor[(→ X1 X2 ... B)]{
  @pie[→], pronounced "arrow", is shorter way of writing @pie[(Π ((x X1) (x X2) ...) B)] when the identifiers @racket[x ...] are not used.}
@@ -473,7 +476,7 @@ The second projection of a pair. If @pie[p] is a @pie[(Σ ((_x _A)) _D)], then
  @pieblock[(→ _X
              _Y)]
  then @pie[(cong target fun)] is an
- @pieblock[(= _X (fun _from) (fun _to))]
+ @pieblock[(= _Y (fun _from) (fun _to))]
 }
 @def-eliminator[(ind-= [target (= _A _from _to)]
                         [motive (Π ((x _A))

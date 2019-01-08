@@ -237,7 +237,7 @@
     #:datum-literals (U
                       Nat zero add1
                       which-Nat iter-Nat rec-Nat ind-Nat
-                      → -> Pi Π the lambda λ Atom quote
+                      → -> Pi Π ∏ the lambda λ Atom quote
                       cons car cdr Sigma Σ Pair
                       Trivial sole
                       List :: nil ind-List rec-List
@@ -279,6 +279,8 @@
                   (map binding-site (syntax->list #'(x0 x ...)))
                   (parse-pie #'b))]
     [(Pi ~! more ...)
+     (parse-pie #'(Π more ...))]
+    [(∏ ~! more ...)
      (parse-pie #'(Π more ...))]
     [(Π ~! (~describe "argument names and types"
                       ((x0:pie-id A0) (x:pie-id A) ...))
@@ -384,11 +386,10 @@
      (make-ind-Either stx (parse-pie #'tgt) (parse-pie #'mot) (parse-pie #'l) (parse-pie #'r))]
     [(~describe "TODO" TODO)
      (make-TODO stx)]
-    [(~describe "application"
-                ((~describe "rator" rator)
-                 (~describe "rand" rand0)
-                 (~describe "rand" rand)
-                 ...))
+    [(~describe "function application"
+                ((~describe "function" rator)
+                 (~describe "first argument" rand0)
+                 (~describe "more arguments" rand) ...))
      (make-ap stx (parse-pie #'rator) (parse-pie #'rand0) (map parse-pie (syntax->list #'(rand ...))))]))
 
 (define (parse-pie-decl stx)
@@ -437,7 +438,7 @@
     #:datum-literals (U
                       Nat zero add1
                       which-Nat iter-Nat rec-Nat ind-Nat
-                      → -> Pi Π the lambda λ  Atom quote
+                      → -> Pi Π ∏ the lambda λ  Atom quote
                       cons car cdr Sigma Σ Pair
                       Trivial sole
                       List :: nil ind-List rec-List
@@ -491,20 +492,28 @@
                                   b/bindings)))
                         (car (syntax-e stx))))]
     [(Pi ~! ((x0:id A0) (x:id A) ...) B)
-     (with-syntax ([pi/loc (syntax/loc (car (syntax-e stx)) kw:Pi)]
+     (with-syntax ([sig/loc (syntax/loc (car (syntax-e stx)) kw:Pi)]
                    [A0* #'(pie->binders A0)]
                    [(A* ...) #'((pie->binders A) ...)]
                    [B* #'(pie->binders B)])
        (add-disappeared (syntax/loc stx
-                          (void pi/loc (let* ([x0 A0*] [x A*] ...) B*)))
+                          (void sig/loc (let* ([x0 A0*] [x A*] ...) B*)))
                         (car (syntax-e stx))))]
     [(Π ~! ((x0:id A0) (x:id A) ...) B)
-     (with-syntax ([pi/loc (syntax/loc (car (syntax-e stx)) kw:Π)]
+     (with-syntax ([sig/loc (syntax/loc (car (syntax-e stx)) kw:Π)]
                    [A0* #'(pie->binders A0)]
                    [(A* ...) #'((pie->binders A) ...)]
                    [B* #'(pie->binders B)])
        (add-disappeared (syntax/loc stx
-                          (void pi/loc (let* ([x0 A0*] [x A*] ...) B*)))
+                          (void sig/loc (let* ([x0 A0*] [x A*] ...) B*)))
+                        (car (syntax-e stx))))]
+    [(∏ ~! ((x0:id A0) (x:id A) ...) B)
+     (with-syntax ([sig/loc (syntax/loc (car (syntax-e stx)) kw:∏)]
+                   [A0* #'(pie->binders A0)]
+                   [(A* ...) #'((pie->binders A) ...)]
+                   [B* #'(pie->binders B)])
+       (add-disappeared (syntax/loc stx
+                          (void sig/loc (let* ([x0 A0*] [x A*] ...) B*)))
                         (car (syntax-e stx))))]
     [(Sigma ~! ((x0:id A0) (x:id A) ...) B)
      (with-syntax ([sig/loc (syntax/loc (car (syntax-e stx)) kw:Sigma)]

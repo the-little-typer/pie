@@ -32,7 +32,7 @@
          match norm
          (rename-out [kw:U U]
                      [kw:Nat Nat] [kw:zero zero] [kw:add1 add1] [kw:which-Nat which-Nat] [kw:iter-Nat iter-Nat] [kw:rec-Nat rec-Nat] [kw:ind-Nat ind-Nat]
-                     [kw:-> ->] [kw:→ →] [kw:Π Π] [kw:λ λ] [kw:Pi Pi] [kw:lambda lambda]
+                     [kw:-> ->] [kw:→ →] [kw:Π Π] [kw:λ λ] [kw:Pi Pi] [kw:∏ ∏] [kw:lambda lambda]
                      [kw:quote quote] [kw:Atom Atom]
                      [kw:car car] [kw:cdr cdr] [kw:cons cons] [kw:Σ Σ] [kw:Sigma Sigma] [kw:Pair Pair]
                      [kw:Trivial Trivial] [kw:sole sole]
@@ -276,13 +276,14 @@
                                        [grand-op-end (send txt get-forward-sexp (add1 grandparent-sexp-start))]
                                        [grand-op-start (send txt get-backward-sexp grand-op-end)]
                                        [grand-op (send txt get-text grand-op-start grand-op-end)])
-                                      (if (member grand-op '("Pi" "Π" "Sigma" "Σ"))
+                                      (if (member grand-op '("Pi" "Π" "∏" "Sigma" "Σ"))
                                           #t
                                           #f)))
                           (define real-op
                             (match op
                               ['lambda 'λ]
                               ['Pi 'Π]
+                              ['∏ 'Π]
                               ['Sigma 'Σ]
                               ['-> '→]
                               [other other]))

@@ -13,9 +13,7 @@
                                 (List 'check-same Precise-Loc Src Src Src)
                                 (List 'expression Src)))])
 (require "rep.rkt")
-(require (only-in "normalize.rkt" read-back-ctx))
-
-
+(require (only-in "normalize.rkt" read-back-ctx val-of))
 
 
 (: foo Symbol)
@@ -27,6 +25,8 @@
     [(go _) (error 'not-stop)]
     [(stop _ m)
      (check-equal? m msg-wanted)]))
+
+(check-equal? (val-of (ctx->env init-ctx) '(the Nat zero)) 'ZERO)
 
 (check-equal?
  (rep init-ctx
@@ -1637,3 +1637,17 @@
                            (λ (p)
                              ((C to) p)))
                          b)))))))))))
+
+;;; Check that ∏ works as a way of writing Π
+(check-equal?
+ (rep init-ctx
+     (parse-pie #'((the (∏ ((A U) (B U))
+                    (-> (Either A B)
+                        (Either B A)))
+                (lambda (A B e)
+                  (ind-Either e
+                              (lambda (_) (Either B A))
+                              (lambda (x) (right x))
+                              (lambda (x) (left x)))))
+           Nat Trivial (left 2))))
+ (go '(the (Either Trivial Nat) (right (add1 (add1 zero))))))
