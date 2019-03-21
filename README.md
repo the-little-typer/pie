@@ -22,7 +22,7 @@ If you prefer an editor other than DrRacket, it may be convenient to start a Pie
 
 
 ## Installation Instructions
-Pie is not yet officially released. However, it is on the Racket package server.
+Pie is available on the Racket package server. If you don't plan to make your own changes to Pie, then it is easiest to install it from there.
 
 ### From DrRacket
 
