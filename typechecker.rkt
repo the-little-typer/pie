@@ -158,8 +158,8 @@
           (begin ((pie-info-hook) x-loc `(binding-site ,A-out))
                  (go `(Σ ((,z ,A-out)) ,D-out)))))]
      ['Trivial (go 'Trivial)]
-     [`(LiΓ ,E)
-      (go-on ((E-out (is-type Γ E)))
+     [`(List ,E)
+      (go-on ((E-out (is-type Γ r E)))
         (go `(List ,E-out)))]
      ['Absurd (go 'Absurd)]
      [`(= ,A ,from ,to)
