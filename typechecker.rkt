@@ -338,7 +338,7 @@
            (go `(the ,(read-back-type Γ A) (car ,p-out)))]
           [non-Sigma
            (stop (src-loc e)
-                 `("Not a Σ:" ,(read-back-type Γ non-Sigma)))]))]
+                 `("Not a pair type:" ,(read-back-type Γ non-Sigma)))]))]
      [`(cdr ,p)
       (go-on ([`(the ,p-t ,p-out) (synth Γ r p)])
         (match (val-in-ctx Γ p-t)
@@ -348,7 +348,7 @@
                      (cdr ,p-out)))]
           [non-Sigma
            (stop (src-loc e)
-                 `("Not a Σ:" ,(read-back-type Γ non-Sigma)))]))]
+                 `("Not a pair type:" ,(read-back-type Γ non-Sigma)))]))]
      [`(quote ,a)
       (if (atom-ok? a)
           (go `(the Atom (quote ,a)))
@@ -613,7 +613,7 @@
                          (val-of-closure c (val-in-ctx Γ rand-out)))
                        (,rator-out ,rand-out))))]
           [non-PI (stop (src-loc e)
-                        `("Not a Π:" ,(read-back-type Γ non-PI)))]))]
+                        `("Not a function type:" ,(read-back-type Γ non-PI)))]))]
      ;;; Γ ⊢ (f x y ...) synth ~> (the (Pi ((x A)) B) app')
      ;;; Γ ⊢ z ∈ A ~> z'
      ;;;---------------------------------------------------
@@ -631,7 +631,7 @@
                          (val-of-closure c (val-in-ctx Γ rand-out)))
                        (,app0 ,rand-out))))]
           [non-PI (stop (src-loc e)
-                        `("Not a Π:" ,(read-back-type Γ non-PI)))]))]
+                        `("Not a function type:" ,(read-back-type Γ non-PI)))]))]
      [x
       (cond [(and (symbol? x) (var-name? x))
              (let ((real-x (rename r x)))
