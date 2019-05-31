@@ -21,7 +21,7 @@ Additionally, Pie supports the [DrRacket TODO list](https://github.com/david-chr
 If you prefer an editor other than DrRacket, it may be convenient to start a Pie REPL on a command line. To do so, use the command `racket -l pie -i` to start Racket with the `pie` language in interactive mode.
 
 
-## Installation Instructions
+## Installs
 Pie is available on the Racket package server. If you don't plan to make your own changes to Pie, then it is easiest to install it from there.
 
 ### From DrRacket
@@ -37,10 +37,11 @@ Run the following command:
 
 Because it exists to support a book, the Pie language is finished and will not change. However, this _implementation_ of Pie might someday acquire additional features, or it might require updates to keep up with new computers. In that case, update it as you would any Racket package.
 
-### Updating in DrRacket
+### From DrRacket
 
 Click the "File" menu, and then select "Install Package...". Type `pie` in the box, and click the "Update" button.
 
-### Updating from a Command Line
+### From a Command Line
 
-The command `raco pkg update pie` updates Pie.
+Run the following command:
+`raco pkg update pie`
