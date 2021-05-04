@@ -542,6 +542,15 @@
 (define (fresh Γ x)
   (freshen (names-only Γ) x))
 
+;; Find a fresh name, using none of those described in a context nor
+;; occurring in an expression. This is used when constructing a fresh
+;; binding to avoid capturing a free variable that would otherwise be
+;; an error because it points at the context.
+(: fresh-binder (-> Ctx Src Symbol Symbol))
+(define (fresh-binder Γ expr x)
+  (freshen (append (names-only Γ) (occurring-names expr)) x))
+
+
 ;; Find the names that are described in a context, so they can be
 ;; avoided.
 (: names-only (-> Ctx (Listof Symbol)))
@@ -550,6 +559,100 @@
     [(null? Γ) '()]
     [else (cons (car (car Γ)) (names-only (cdr Γ)))]))
 
+;; Find all the names that occur in an expression. For correctness, we
+;; need only find the free identifiers, but finding the bound
+;; identifiers as well means that the bindings introduced by
+;; desugaring expressions are more different from the program as
+;; written, which can help readability of internals.
+(: occurring-names (-> Src (Listof Symbol)))
+(define (occurring-names expr)
+  (match (src-stx expr)
+    [`(the ,t ,e)
+     (append (occurring-names t) (occurring-names e))]
+    [`(quote ,x)
+     '()]
+    [`(add1 ,n)
+     (occurring-names n)]
+    [`(which-Nat ,tgt ,base ,step)
+     (append (occurring-names tgt) (occurring-names base) (occurring-names step))]
+    [`(iter-Nat ,tgt ,base ,step)
+     (append (occurring-names tgt) (occurring-names base) (occurring-names step))]
+    [`(rec-Nat ,tgt ,base ,step)
+     (append (occurring-names tgt) (occurring-names base) (occurring-names step))]
+    [`(ind-Nat ,tgt ,mot ,base ,step)
+     (append (occurring-names tgt) (occurring-names mot) (occurring-names base) (occurring-names step))]
+    [(cons '-> (cons t0 ts))
+     (append (occurring-names t0) (apply append (map occurring-names ts)))]
+    [`(Π ,bindings ,t)
+     (append (apply append (map occurring-binder-names bindings)) (occurring-names t))]
+    [`(λ ,bindings ,t)
+     (append (map binder-var bindings) (occurring-names t))]
+    [`(Σ ,bindings ,t)
+     (append (apply append (map occurring-binder-names bindings)) (occurring-names t))]
+    [`(Pair ,A ,D)
+     (append (occurring-names A) (occurring-names D))]
+    [`(cons ,A ,D)
+     (append (occurring-names A) (occurring-names D))]
+    [`(car ,p)
+     (occurring-names p)]
+    [`(cdr ,p)
+     (occurring-names p)]
+    [`(:: ,A ,D)
+     (append (occurring-names A) (occurring-names D))]
+    [`(List ,E)
+     (occurring-names E)]
+    [`(rec-List ,tgt ,base ,step)
+     (append (occurring-names tgt) (occurring-names base) (occurring-names step))]
+    [`(ind-List ,tgt ,mot ,base ,step)
+     (append (occurring-names tgt) (occurring-names mot) (occurring-names base) (occurring-names step))]
+    [`(ind-Absurd ,tgt ,mot)
+     (append (occurring-names tgt) (occurring-names mot))]
+    [`(= ,A ,from ,to)
+     (append (occurring-names A) (occurring-names from) (occurring-names to))]
+    [`(same ,e)
+     (occurring-names e)]
+    [`(replace ,tgt ,mot ,base)
+     (append (occurring-names tgt) (occurring-names mot) (occurring-names base))]
+    [`(trans ,tgt1 ,tgt2)
+     (append (occurring-names tgt1) (occurring-names tgt2))]
+    [`(cong ,tgt ,f)
+     (append (occurring-names tgt) (occurring-names f))]
+    [`(symm ,tgt)
+     (occurring-names tgt)]
+    [`(ind-= ,tgt ,mot ,base)
+     (append (occurring-names tgt) (occurring-names mot) (occurring-names base))]
+    [`(Vec ,E ,len)
+     (append (occurring-names E) (occurring-names len))]
+    [`(vec:: ,hd ,tl)
+     (append (occurring-names hd) (occurring-names tl))]
+    [`(head ,tgt)
+     (occurring-names tgt)]
+    [`(tail ,tgt)
+     (occurring-names tgt)]
+    [`(ind-Vec ,len ,tgt ,mot ,base ,step)
+     (append (occurring-names len) (occurring-names tgt)
+             (occurring-names mot)
+             (occurring-names base) (occurring-names step))]
+    [`(Either ,A ,B)
+     (append (occurring-names A) (occurring-names B))]
+    [`(left ,e)
+     (occurring-names e)]
+    [`(right ,e)
+     (occurring-names e)]
+    [`(ind-Either ,tgt ,mot ,l ,r)
+     (append (occurring-names tgt) (occurring-names mot) (occurring-names l) (occurring-names r))]
+    [(cons (? src? f) (cons arg0 args))
+     (append (occurring-names f) (occurring-names arg0) (apply append (map occurring-names args)))]
+    [x
+     (if (and (symbol? x) (var-name? x))
+       (list x)
+       '())]))
+
+(: occurring-binder-names (-> Typed-Binder (Listof Symbol)))
+(define (occurring-binder-names b)
+  (match b
+    [(list (binder where x) t)
+     (cons x (occurring-names t))]))
 
 
 ;; Local Variables:
