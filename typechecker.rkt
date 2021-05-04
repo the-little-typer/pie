@@ -96,7 +96,7 @@
      ['U (go 'U)]
      ['Nat (go 'Nat)]
      [`(-> ,A ,B)
-      (let ([x (fresh Γ 'x)])
+      (let ([x (fresh-binder Γ B 'x)])
         (go-on ([A-out (is-type Γ r A)]
                 [B-out (is-type (bind-free Γ
                                            x
@@ -105,7 +105,7 @@
                                 B)])
           (go `(Π ((,x ,A-out)) ,B-out))))]
      [`(-> ,A ,B ,C . ,C*)
-      (let ([x (fresh Γ 'x)])
+      (let ([x (fresh-binder Γ (make-app B C C*) 'x)])
         (go-on ([A-out (is-type Γ r A)]
                 [t-out (is-type (bind-free Γ x (val-in-ctx Γ A-out))
                                 r
@@ -132,7 +132,7 @@
      ['Atom
       (go 'Atom)]
      [`(Pair ,A ,D)
-      (let ([x (fresh Γ 'x)])
+      (let ([x (fresh-binder Γ D 'x)])
         (go-on ([A-out (is-type Γ r A)]
                 [D-out (is-type (bind-free Γ x (val-in-ctx Γ A-out))
                                 r
@@ -207,7 +207,7 @@
                `(U
                  "is a type, but it does not have a type."))]
      [`(-> ,A ,B)
-      (let ([z (fresh Γ 'x)])
+      (let ([z (fresh-binder Γ B 'x)])
         (go-on ([A-out (check Γ r A 'UNIVERSE)]
                 [B-out (check (bind-free Γ z (val-in-ctx Γ A-out))
                               r
@@ -215,7 +215,7 @@
                               'UNIVERSE)])
           (go `(the U (Π ((,z ,A-out)) ,B-out)))))]
      [`(-> ,A ,B ,C . ,C*)
-      (let ([z (fresh Γ 'x)])
+      (let ([z (fresh-binder Γ (make-app B C C*) 'x)])
         (go-on ([A-out (check Γ r A 'UNIVERSE)]
                 [t-out (check (bind-free Γ z (val-in-ctx Γ A-out))
                               r
@@ -390,17 +390,14 @@
           [(LIST E)
            (go-on ((`(the ,b-t-out ,b-out) (synth Γ r b))
                    (b-t-val (go (val-in-ctx Γ b-t-out)))
-                   (s-out (let ([x (fresh Γ 'x)]
-                                [xs (fresh Γ 'xs)]
-                                [ih (fresh Γ 'ih)])
-                            (check
-                             Γ
-                             r
-                             s
-                             (Π-type ((e E)
-                                      (es (LIST E))
-                                      (ih b-t-val))
-                                     b-t-val)))))
+                   (s-out (check
+                           Γ
+                           r
+                           s
+                           (Π-type ((e E)
+                                    (es (LIST E))
+                                    (ih b-t-val))
+                                   b-t-val))))
              (go `(the ,b-t-out
                        (rec-List ,tgt-out
                                  (the ,b-t-out ,b-out)
@@ -431,16 +428,15 @@
       (go-on ((`(the ,tgt-t-out ,tgt-out) (synth Γ r tgt)))
         (match (val-in-ctx Γ tgt-t-out)
           [(EQUAL Av fromv tov)
-           (let ((x (fresh Γ 'x)))
-             (go-on ((mot-out (check Γ
-                                     r
-                                     mot
-                                     (Π-type ((x Av)) 'UNIVERSE)))
-                     (b-out (check Γ r b (do-ap (val-in-ctx Γ mot-out)
-                                                fromv))))
-               (go `(the ,(read-back-type Γ (do-ap (val-in-ctx Γ mot-out)
-                                                    tov))
-                         (replace ,tgt-out ,mot-out ,b-out)))))]
+           (go-on ((mot-out (check Γ
+                                   r
+                                   mot
+                                   (Π-type ((x Av)) 'UNIVERSE)))
+                   (b-out (check Γ r b (do-ap (val-in-ctx Γ mot-out)
+                                              fromv))))
+             (go `(the ,(read-back-type Γ (do-ap (val-in-ctx Γ mot-out)
+                                                 tov))
+                       (replace ,tgt-out ,mot-out ,b-out))))]
           [non-equal
            (stop
             (src-loc e)
@@ -582,13 +578,12 @@
       (go-on ((`(the ,tgt-t ,tgt-out) (synth Γ r tgt)))
         (match (val-in-ctx Γ tgt-t)
           [(EITHER Lv Rv)
-           (let ([x^ (fresh Γ 'x)])
-             (go-on ((mot-out (check Γ r mot (Π-type ((x (EITHER Lv Rv))) 'UNIVERSE)))
-                     (mot-val (go (val-in-ctx Γ mot-out)))
-                     (l-out (check Γ r on-left (Π-type ((x Lv)) (do-ap mot-val (LEFT x)))))
-                     (r-out (check Γ r on-right (Π-type ((x Rv)) (do-ap mot-val (RIGHT x))))))
-               (go `(the (,mot-out ,tgt-out)
-                         (ind-Either ,tgt-out ,mot-out ,l-out ,r-out)))))]
+           (go-on ((mot-out (check Γ r mot (Π-type ((x (EITHER Lv Rv))) 'UNIVERSE)))
+                   (mot-val (go (val-in-ctx Γ mot-out)))
+                   (l-out (check Γ r on-left (Π-type ((x Lv)) (do-ap mot-val (LEFT x)))))
+                   (r-out (check Γ r on-right (Π-type ((x Rv)) (do-ap mot-val (RIGHT x))))))
+             (go `(the (,mot-out ,tgt-out)
+                       (ind-Either ,tgt-out ,mot-out ,l-out ,r-out))))]
           [non-Either
            (stop (src-loc e)
                  `("Expected an Either, but got a"
@@ -870,6 +865,11 @@
          (eqv? (car cs) #\-))
      (all-ok-atom (cdr cs))]
     [else #f]))
+
+;; Helper to concoct a function application form in source syntax
+(: make-app (-> Src Src (Listof Src) Src))
+(define (make-app a b cs)
+  (@ (src-loc a) (list* a b cs)))
 
 (module+ test
   (require typed/rackunit)
